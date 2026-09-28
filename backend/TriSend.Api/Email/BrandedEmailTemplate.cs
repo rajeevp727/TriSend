@@ -1,6 +1,4 @@
 using System.Net;
-using System.Text;
-
 namespace TriSend.Api.Email;
 
 public sealed record EmailTemplate(
