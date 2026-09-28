@@ -28,34 +28,28 @@ Example:
 }
 ```
 
-Response:
+Current MVP supports `email` only. SMS and WhatsApp requests are rejected until their providers are implemented.
+
+Successful response:
 
 ```json
 {
   "id": "message-id",
-  "status": "queued"
+  "status": "sent",
+  "channel": "email",
+  "providerMessageId": "resend-email-id"
 }
 ```
 
-Expected HTTP status: `202 Accepted`.
+Expected HTTP status: `200 OK`.
+
+Provider failure returns HTTP `502 Bad Gateway` and the message is stored with status `failed`.
 
 ## Get message
 
 ### GET /v1/messages/{id}
 
-Returns normalized status, recipient, channel, provider message ID and timestamps.
-
-## List messages
-
-### GET /v1/messages?status=delivered&limit=50
-
-Tenant-scoped pagination.
-
-## Webhooks
-
-### POST /v1/webhooks/{provider}
-
-Receives provider callbacks. Signature verification is mandatory before changing message state.
+Returns the stored message status, recipient, channel, provider message ID and timestamps.
 
 ## Health
 
@@ -63,12 +57,15 @@ Receives provider callbacks. Signature verification is mandatory before changing
 
 Returns HTTP 200 when the API process is healthy.
 
+### GET /health/db
+
+Returns HTTP 200 when the API can connect to Supabase PostgreSQL.
+
 ## Error format
 
 ```json
 {
   "code": "validation_error",
-  "message": "Recipient is required.",
-  "traceId": "..."
+  "message": "Recipient and body are required."
 }
 ```
