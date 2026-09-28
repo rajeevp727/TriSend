@@ -2,15 +2,17 @@
 
 An API-first communications platform for **SMS, WhatsApp and email**.
 
-Other applications integrate with TriSend once instead of integrating separately with messaging vendors.
-
-## MVP flow
+## Current MVP architecture
 
 ```
-Your App -> TriSend API -> Azure SQL -> Azure Service Bus -> Azure Function -> Provider -> Status
+React / client -> Render API -> Supabase PostgreSQL
+                         |
+                         -> Render Background Worker -> SMTP
 ```
 
-### Send a message
+The MVP currently sends **email** through SMTP. SMS and WhatsApp remain part of the API contract but are rejected by the worker until their providers are implemented.
+
+## Send a message
 
 ```http
 POST /v1/messages
@@ -20,21 +22,29 @@ Content-Type: application/json
 
 ```json
 {
-  "channel": "sms",
-  "recipient": "+919876543210",
-  "body": "Your OTP is 123456"
+  "channel": "email",
+  "recipient": "customer@example.com",
+  "subject": "Order update",
+  "body": "Your order has shipped."
 }
 ```
 
-The API returns HTTP 202 with a queued message ID. The Function worker consumes the queue and updates the message status.
+The API returns HTTP 202 with a queued message ID. The Render worker claims queued messages from PostgreSQL and updates the message status.
 
-## Supported channels
+## Database
 
-- SMS
-- WhatsApp
-- Email
+Supabase PostgreSQL is the source of truth. Database changes are SQL migrations under `database/migrations/`.
 
-The MVP ships with a development provider so the complete queue/worker/status path can be verified before adding production provider credentials.
+Apply migrations in the Supabase SQL editor. Do not create application tables manually.
+
+## Deployment
+
+The API and worker are Docker services built from the repository root context:
+
+- API Dockerfile: `backend/TriSend.Api/Dockerfile`
+- Worker Dockerfile: `workers/TriSend.Worker/Dockerfile`
+
+Render can auto-deploy both services from the `main` branch.
 
 ## Documentation
 

@@ -1,41 +1,75 @@
 # TriSend Deployment
 
-## Azure resources
+## Infrastructure split
 
-- Azure App Service hosts the .NET 10 TriSend API.
-- Azure Functions isolated .NET 10 hosts the Service Bus worker.
-- Azure Service Bus provides durable asynchronous message delivery.
-- Azure SQL Database stores tenants and messages.
-- Azure Key Vault stores provider secrets and application secrets.
-- Application Insights provides telemetry.
+### Application code
 
-## Required API settings
+Managed in GitHub and deployed automatically by Render from `main`:
+
+- Render Web Service: TriSend API
+- Render Background Worker: TriSend Worker
+
+### Database
+
+Supabase PostgreSQL.
+
+Database objects are created only through SQL migration files in `database/migrations/`.
+
+### Secrets
+
+Set these as Render environment variables; never commit them:
+
+#### API
 
 - `Mvp__ApiKey`
 - `Mvp__TenantId`
-- `ConnectionStrings__Sql`
-- `ServiceBus__FullyQualifiedNamespace`
-- `ServiceBus__QueueName`
+- `ConnectionStrings__Postgres`
 
-## Required Function settings
+#### Worker
 
-- `FUNCTIONS_WORKER_RUNTIME=dotnet-isolated`
-- `ServiceBusQueueName=trisend-messages`
-- `ServiceBusConnection__fullyQualifiedNamespace=<namespace>.servicebus.windows.net`
-- `ConnectionStrings__Sql=<SQL connection string using Entra authentication>`
+- `ConnectionStrings__Postgres`
+- `Smtp__Host`
+- `Smtp__Port`
+- `Smtp__Username`
+- `Smtp__Password`
+- `Smtp__FromAddress`
+- `Smtp__FromName`
+- `Smtp__EnableSsl`
 
-The Function's managed identity needs Service Bus Data Receiver and SQL database permissions.
+## Database migration
 
-The API's managed identity needs Service Bus Data Sender and SQL database permissions.
+Apply `database/migrations/001_initial_schema.sql` in the Supabase SQL editor.
+
+The migration creates the tenants, messages, and message-events tables and inserts the MVP tenant used by the default configuration.
+
+## Render API
+
+- Language: Docker
+- Branch: `main`
+- Root Directory: blank
+- Dockerfile Path: `backend/TriSend.Api/Dockerfile`
+- Docker Context: `.`
+- Health check path: `/health`
+- The container listens on port 10000.
+
+## Render worker
+
+- Service type: Background Worker
+- Language: Docker
+- Branch: `main`
+- Root Directory: blank
+- Dockerfile Path: `workers/TriSend.Worker/Dockerfile`
+- Docker Context: `.`
+
+No inbound port is required for the worker.
 
 ## Deployment order
 
-1. Create Azure resources.
-2. Create the SQL schema from `infrastructure/sql/001_initial_schema.sql`.
-3. Configure managed identities/RBAC.
-4. Configure Key Vault and application settings.
-5. Deploy the API.
-6. Deploy the Function worker.
-7. Run the smoke test.
+1. Apply the Supabase migration.
+2. Create/configure the Render API service.
+3. Create/configure the Render worker.
+4. Add the environment variables and secrets.
+5. Deploy both services from `main`.
+6. Run the smoke test.
 
-See [Smoke Test](SMOKE-TEST.md) for the end-to-end verification.
+The repository no longer contains an Azure deployment workflow for the API/worker.

@@ -1,32 +1,22 @@
-# Architecture
+# TriSend Architecture
 
 ```mermaid
 graph TD
-    C[Customer / Dashboard] --> SWA[Azure Static Web Apps - React]
-    C --> API[Azure App Service - .NET 8 API]
-    API --> SQL[Azure SQL Database]
-    API --> SB[Azure Service Bus]
-    API --> KV[Azure Key Vault]
-    SB --> W[Azure Functions / Worker]
-    W --> SMS[SMS Provider]
-    W --> WA[WhatsApp Provider]
-    W --> EM[Email Provider]
-    SMS --> WH[Provider Webhooks]
-    WA --> WH
-    EM --> WH
-    WH --> API
-    API --> AI[Application Insights]
-    W --> AI
+    C[Customer / Dashboard] --> API[Render - .NET API]
+    API --> DB[Supabase PostgreSQL]
+    DB --> W[Render Background Worker]
+    W --> SMTP[SMTP Provider]
 ```
 
 ## Message flow
 
 1. API authenticates the tenant and validates the request.
-2. Message is persisted as queued.
-3. API publishes a command to Service Bus.
-4. Worker selects the channel provider and sends the message.
-5. Provider response is persisted.
-6. Provider webhook updates delivery status.
-7. Dashboard reads the resulting status and usage.
+2. API persists the message with status `queued`.
+3. The worker polls PostgreSQL and claims one queued message using PostgreSQL row locking with `FOR UPDATE SKIP LOCKED`.
+4. The worker sends email through SMTP.
+5. The worker records `sent` or `failed` status.
+6. The API exposes message status to the caller.
 
-Provider credentials belong in Azure Key Vault. Never commit credentials.
+The queue is database-backed for the current Render deployment. This removes the Azure Service Bus dependency from the MVP deployment.
+
+Provider credentials and application secrets must be supplied as Render environment variables. Never commit credentials.

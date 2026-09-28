@@ -1,5 +1,4 @@
 using TriSend.Api.Data;
-using TriSend.Api.Messaging;
 using TriSend.Contracts;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +8,6 @@ namespace TriSend.Api.Controllers;
 [Route("v1/messages")]
 public sealed class MessagesController(
     MessageRepository repository,
-    ServiceBusMessagePublisher publisher,
     IConfiguration configuration) : ControllerBase
 {
     [HttpPost]
@@ -32,14 +30,18 @@ public sealed class MessagesController(
         var createdAt = DateTimeOffset.UtcNow;
 
         await repository.InsertAsync(
-            new MessageRecord(id, tenantId, channel.ToString().ToLowerInvariant(),
-                request.Recipient.Trim(), request.Body.Trim(), request.Subject?.Trim(),
-                "queued", null, null, createdAt, null),
-            cancellationToken);
-
-        await publisher.PublishAsync(
-            new SendMessageCommand(id, tenantId, channel, request.Recipient.Trim(),
-                request.Body.Trim(), request.Subject?.Trim()),
+            new MessageRecord(
+                id,
+                tenantId,
+                channel.ToString().ToLowerInvariant(),
+                request.Recipient.Trim(),
+                request.Body.Trim(),
+                request.Subject?.Trim(),
+                "queued",
+                null,
+                null,
+                createdAt,
+                null),
             cancellationToken);
 
         return Accepted($"/v1/messages/{id}", new

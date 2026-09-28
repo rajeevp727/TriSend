@@ -1,33 +1,37 @@
-using Azure.Identity;
-using Azure.Messaging.ServiceBus;
 using TriSend.Api.Data;
-using TriSend.Api.Messaging;
 using TriSend.Api.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-builder.Services.AddSingleton<MessageRepository>();
 
-var serviceBusConnectionString = builder.Configuration["ServiceBus:ConnectionString"];
-var serviceBusNamespace = builder.Configuration["ServiceBus:FullyQualifiedNamespace"];
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
 
-builder.Services.AddSingleton(sp =>
+builder.Services.AddCors(options =>
 {
-    if (!string.IsNullOrWhiteSpace(serviceBusConnectionString))
-        return new ServiceBusClient(serviceBusConnectionString);
+    options.AddPolicy("Frontend", policy =>
+    {
+        if (allowedOrigins.Length == 0)
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+            return;
+        }
 
-    if (string.IsNullOrWhiteSpace(serviceBusNamespace))
-        throw new InvalidOperationException(
-            "Configure ServiceBus:ConnectionString for local development or ServiceBus:FullyQualifiedNamespace in Azure.");
-
-    return new ServiceBusClient(serviceBusNamespace, new DefaultAzureCredential());
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
 });
 
-builder.Services.AddSingleton<ServiceBusMessagePublisher>();
+builder.Services.AddSingleton<MessageRepository>();
 
 var app = builder.Build();
 
+app.UseCors("Frontend");
 app.UseMiddleware<MvpApiKeyMiddleware>();
 
 app.MapGet("/health", () => Results.Ok(new
