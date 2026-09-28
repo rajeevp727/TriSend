@@ -1,75 +1,53 @@
 # TriSend Deployment
 
-## Infrastructure split
-
-### Application code
-
-Managed in GitHub and deployed automatically by Render from `main`:
+## Current architecture
 
 - Render Web Service: TriSend API
-- Render Background Worker: TriSend Worker
+- Supabase: PostgreSQL database
+- Resend: transactional email provider
+- React frontend: separate client application
 
-### Database
+There is no worker service in the current MVP. The API sends email directly to Resend over HTTPS.
 
-Supabase PostgreSQL.
+## Secrets
 
-Database objects are created only through SQL migration files in `database/migrations/`.
+Set these as Render environment variables; never commit them.
 
-### Secrets
-
-Set these as Render environment variables; never commit them:
-
-#### API
+### API
 
 - `Mvp__ApiKey`
 - `Mvp__TenantId`
 - `ConnectionStrings__Postgres`
+- `Resend__ApiKey`
+- `Resend__FromAddress`
+- `Resend__FromName`
 
-#### Worker
-
-- `ConnectionStrings__Postgres`
-- `Smtp__Host`
-- `Smtp__Port`
-- `Smtp__Username`
-- `Smtp__Password`
-- `Smtp__FromAddress`
-- `Smtp__FromName`
-- `Smtp__EnableSsl`
+The Resend API key must be a server-side key with sending permission. Keep it only in Render's environment configuration.
 
 ## Database migration
 
 Apply `database/migrations/001_initial_schema.sql` in the Supabase SQL editor.
 
-The migration creates the tenants, messages, and message-events tables and inserts the MVP tenant used by the default configuration.
+Database objects are created only through SQL migration files. Do not create application tables manually.
 
 ## Render API
 
+- Service type: Web Service
 - Language: Docker
 - Branch: `main`
 - Root Directory: blank
-- Dockerfile Path: `backend/TriSend.Api/Dockerfile`
-- Docker Context: `.`
+- Dockerfile Path: `Dockerfile`
+- Docker Context: repository root
 - Health check path: `/health`
-- The container listens on port 10000.
-
-## Render worker
-
-- Service type: Background Worker
-- Language: Docker
-- Branch: `main`
-- Root Directory: blank
-- Dockerfile Path: `workers/TriSend.Worker/Dockerfile`
-- Docker Context: `.`
-
-No inbound port is required for the worker.
+- Container port: `10000`
 
 ## Deployment order
 
 1. Apply the Supabase migration.
-2. Create/configure the Render API service.
-3. Create/configure the Render worker.
-4. Add the environment variables and secrets.
-5. Deploy both services from `main`.
-6. Run the smoke test.
+2. Configure the Render API service.
+3. Add the API and Resend environment variables.
+4. Deploy from `main`.
+5. Verify `/health` and `/health/db`.
+6. Run the email smoke test.
 
-The repository no longer contains an Azure deployment workflow for the API/worker.
+The repository no longer contains the old Azure deployment, Azure infrastructure, or background-worker implementation.
