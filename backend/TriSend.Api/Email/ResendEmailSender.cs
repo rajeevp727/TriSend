@@ -6,7 +6,8 @@ namespace TriSend.Api.Email;
 
 public sealed class ResendEmailSender(
     HttpClient httpClient,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    BrandedEmailTemplate emailTemplate)
 {
     public async Task<string> SendAsync(
         string idempotencyKey,
@@ -26,17 +27,39 @@ public sealed class ResendEmailSender(
             ? fromAddress
             : $"{fromName} <{fromAddress}>";
 
+        var template = emailTemplate.Build(body);
+
         using var request = new HttpRequestMessage(HttpMethod.Post, "emails");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         request.Headers.Add("Idempotency-Key", idempotencyKey);
 
-        request.Content = JsonContent.Create(new
+        var payload = new Dictionary<string, object?>
         {
-            from,
-            to = new[] { recipient },
-            subject,
-            text = body
-        });
+            ["from"] = from,
+            ["to"] = new[] { recipient },
+            ["subject"] = subject,
+            ["text"] = template.Text,
+            ["html"] = template.Html
+        };
+
+        if (template.ImageBase64 is not null &&
+            template.ImageFileName is not null &&
+            template.ImageContentType is not null &&
+            template.ImageContentId is not null)
+        {
+            payload["attachments"] = new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["content"] = template.ImageBase64,
+                    ["filename"] = template.ImageFileName,
+                    ["content_type"] = template.ImageContentType,
+                    ["content_id"] = template.ImageContentId
+                }
+            };
+        }
+
+        request.Content = JsonContent.Create(payload);
 
         using var response = await httpClient.SendAsync(request, cancellationToken);
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
