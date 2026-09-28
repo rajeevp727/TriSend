@@ -2,7 +2,6 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
 WORKDIR /src
 
-COPY backend/Directory.Build.props ./backend/
 COPY backend/TriSend.Api/TriSend.Api.csproj ./backend/TriSend.Api/
 COPY shared/TriSend.Contracts/TriSend.Contracts.csproj ./shared/TriSend.Contracts/
 
