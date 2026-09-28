@@ -13,7 +13,7 @@ public sealed record EmailTemplate(
 
 public sealed class BrandedEmailTemplate(IConfiguration configuration)
 {
-    private const string DefaultLoaderPath = "Email/Assets/trisend-loader.gif";
+    private const string DefaultLoaderPath = "Email/Assets/TriSend.png";
     private const string DefaultLoaderContentId = "trisend-loader";
 
     public EmailTemplate Build(string body)
