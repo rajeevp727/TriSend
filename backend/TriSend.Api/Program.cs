@@ -30,6 +30,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddSingleton<MessageRepository>();
+builder.Services.AddSingleton<BrandedEmailTemplate>();
 builder.Services.AddHttpClient<ResendEmailSender>(client =>
 {
     client.BaseAddress = new Uri("https://api.resend.com/");
