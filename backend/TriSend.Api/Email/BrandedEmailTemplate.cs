@@ -99,12 +99,9 @@ public sealed class BrandedEmailTemplate(IConfiguration configuration)
                     <td style="vertical-align:middle;padding-right:10px;">{footerImageHtml}</td>
                     <td style="vertical-align:middle;font-family:Arial,Helvetica,sans-serif;">
                       <div style="font-size:12px;color:#6b7280;">{safeFooterText}</div>
-                      <a href="{safeWebsiteUrl}" style="font-size:12px;color:#2563eb;text-decoration:none;">{safeWebsiteLabel}</a>
-                      <span style="font-size:12px;color:#9ca3af;">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
-                      <a href="mailto:{safeEmailAddress}" style="font-size:12px;color:#2563eb;text-decoration:none;">{safeEmailAddress}</a>
-                      <span style="font-size:12px;color:#9ca3af;">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
-                      <span style="font-size:12px;color:#6b7280;">{safePhone}</span>
-                      <br>
+                      <a href="{safeWebsiteUrl}" style="font-size:12px;color:#2563eb;text-decoration:none;">{safeWebsiteLabel}</a><br>
+                      <a href="mailto:{safeEmailAddress}" style="font-size:12px;color:#2563eb;text-decoration:none;">{safeEmailAddress}</a><br>
+                      <span style="font-size:12px;color:#6b7280;">{safePhone}</span><br>
                       <span style="font-size:12px;color:#6b7280;">{safeAddress}</span>
                     </td>
                   </tr>
