@@ -1,3 +1,4 @@
+using Npgsql;
 using TriSend.Api.Data;
 using TriSend.Api.Security;
 
@@ -40,6 +41,40 @@ app.MapGet("/health", () => Results.Ok(new
     service = "trisend-api",
     utc = DateTimeOffset.UtcNow
 }));
+
+app.MapGet("/health/db", async (IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    var connectionString = configuration.GetConnectionString("Postgres");
+
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        return Results.Json(
+            new { status = "unhealthy", database = "not_configured" },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    try
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new NpgsqlCommand("select 1", connection);
+        await command.ExecuteScalarAsync(cancellationToken);
+
+        return Results.Ok(new
+        {
+            status = "healthy",
+            database = "postgres",
+            utc = DateTimeOffset.UtcNow
+        });
+    }
+    catch
+    {
+        return Results.Json(
+            new { status = "unhealthy", database = "postgres" },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+});
 
 app.MapControllers();
 
