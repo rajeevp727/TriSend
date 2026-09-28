@@ -1,5 +1,6 @@
 using Npgsql;
 using TriSend.Api.Data;
+using TriSend.Api.Email;
 using TriSend.Api.Security;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,6 +30,10 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddSingleton<MessageRepository>();
+builder.Services.AddHttpClient<ResendEmailSender>(client =>
+{
+    client.BaseAddress = new Uri("https://api.resend.com/");
+});
 
 var app = builder.Build();
 
