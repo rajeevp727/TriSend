@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Mail;
 using Npgsql;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TriSend.Contracts;
