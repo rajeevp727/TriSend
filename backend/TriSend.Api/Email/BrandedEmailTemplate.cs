@@ -130,7 +130,7 @@ public sealed class BrandedEmailTemplate(IConfiguration configuration)
     {
         var relativePath = configuredPath
             .Replace('/', Path.DirectorySeparatorChar)
-            .Replace('\', Path.DirectorySeparatorChar);
+            .Replace('\\', Path.DirectorySeparatorChar);
 
         var fullPath = Path.IsPathRooted(relativePath)
             ? relativePath
