@@ -19,8 +19,8 @@ public sealed class BrandedEmailTemplate(IConfiguration configuration)
         var enabled = configuration.GetValue("EmailSignature:Enabled", true);
         var companyName = configuration["EmailSignature:CompanyName"] ?? "TriSend";
         var tagline = configuration["EmailSignature:Tagline"] ?? "Messaging Infrastructure Platform for Apps";
-        var websiteUrl = configuration["EmailSignature:WebsiteUrl"] ?? "https://rajeevstech.in";
-        var websiteLabel = configuration["EmailSignature:WebsiteLabel"] ?? "rajeevstech.in";
+        var websiteUrl = configuration["EmailSignature:WebsiteUrl"] ?? "https://www.trisend.rajeevstech.in";
+        var websiteLabel = configuration["EmailSignature:WebsiteLabel"] ?? "www.trisend.rajeevstech.in";
         var footerText = configuration["EmailSignature:FooterText"] ?? "© 2026 TriSend. All rights reserved.";
         var loaderPath = configuration["EmailSignature:LoaderImagePath"] ?? DefaultLoaderPath;
         var loaderContentId = configuration["EmailSignature:LoaderContentId"] ?? DefaultLoaderContentId;
