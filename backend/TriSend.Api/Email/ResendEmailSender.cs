@@ -9,7 +9,7 @@ public sealed class ResendEmailSender(
     IConfiguration configuration)
 {
     public async Task<string> SendAsync(
-        Guid messageId,
+        string idempotencyKey,
         string recipient,
         string subject,
         string body,
@@ -28,7 +28,7 @@ public sealed class ResendEmailSender(
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "emails");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-        request.Headers.Add("Idempotency-Key", messageId.ToString());
+        request.Headers.Add("Idempotency-Key", idempotencyKey);
 
         request.Content = JsonContent.Create(new
         {
