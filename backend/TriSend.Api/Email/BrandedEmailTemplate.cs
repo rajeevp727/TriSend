@@ -53,8 +53,12 @@ public sealed class BrandedEmailTemplate(IConfiguration configuration)
         var safeTagline = WebUtility.HtmlEncode(tagline);
         var safeWebsiteLabel = WebUtility.HtmlEncode(websiteLabel);
         var safeWebsiteUrl = WebUtility.HtmlEncode(websiteUrl);
-        var emailAddress = configuration["EmailSignature:Email"] ?? "support@rajeevstech.in";
+        var emailAddress = configuration["EmailSignature:Email"] ?? "rajeev@trisend.rajeevstech.in";
+        var phone = configuration["EmailSignature:Phone"] ?? "+91- 7032075893";
+        var address = configuration["EmailSignature:Address"] ?? "";
         var safeEmailAddress = WebUtility.HtmlEncode(emailAddress);
+        var safePhone = WebUtility.HtmlEncode(phone);
+        var safeAddress = WebUtility.HtmlEncode(address);
         var safeFooterText = WebUtility.HtmlEncode(footerText);
 
         var html = $"""
@@ -98,6 +102,8 @@ public sealed class BrandedEmailTemplate(IConfiguration configuration)
                       <a href="{safeWebsiteUrl}" style="font-size:12px;color:#2563eb;text-decoration:none;">{safeWebsiteLabel}</a>
                       <span style="font-size:12px;color:#9ca3af;">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
                       <a href="mailto:{safeEmailAddress}" style="font-size:12px;color:#2563eb;text-decoration:none;">{safeEmailAddress}</a>
+                      <span style="font-size:12px;color:#9ca3af;">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+                      <span style="font-size:12px;color:#6b7280;">{safePhone}</span>
                     </td>
                   </tr>
                 </table>
@@ -120,6 +126,7 @@ public sealed class BrandedEmailTemplate(IConfiguration configuration)
 {websiteLabel}: {websiteUrl}
 {footerText}
 {emailAddress}
+{phone}
 """;
 
         return new EmailTemplate(
