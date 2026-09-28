@@ -1,30 +1,10 @@
-using Azure.Identity;
-using Azure.Messaging.ServiceBus;
 using TriSend.Api.Data;
-using TriSend.Api.Messaging;
 using TriSend.Api.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddSingleton<MessageRepository>();
-
-var serviceBusConnectionString = builder.Configuration["ServiceBus:ConnectionString"];
-var serviceBusNamespace = builder.Configuration["ServiceBus:FullyQualifiedNamespace"];
-
-builder.Services.AddSingleton(sp =>
-{
-    if (!string.IsNullOrWhiteSpace(serviceBusConnectionString))
-        return new ServiceBusClient(serviceBusConnectionString);
-
-    if (string.IsNullOrWhiteSpace(serviceBusNamespace))
-        throw new InvalidOperationException(
-            "Configure ServiceBus:ConnectionString for local development or ServiceBus:FullyQualifiedNamespace in Azure.");
-
-    return new ServiceBusClient(serviceBusNamespace, new DefaultAzureCredential());
-});
-
-builder.Services.AddSingleton<ServiceBusMessagePublisher>();
 
 var app = builder.Build();
 
