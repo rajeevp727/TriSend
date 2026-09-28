@@ -60,6 +60,9 @@ public sealed class MessagesController(
         var recipient = request.Recipient.Trim();
         var subject = request.Subject.Trim();
         var body = request.Body.Trim();
+        var idempotencyKey = string.IsNullOrWhiteSpace(request.IdempotencyKey)
+            ? id.ToString()
+            : request.IdempotencyKey.Trim();
 
         await repository.InsertAsync(
             new MessageRecord(
@@ -79,7 +82,7 @@ public sealed class MessagesController(
         try
         {
             var providerMessageId = await emailSender.SendAsync(
-                id,
+                idempotencyKey,
                 recipient,
                 subject,
                 body,
