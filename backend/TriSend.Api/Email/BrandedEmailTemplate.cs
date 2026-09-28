@@ -18,10 +18,10 @@ public sealed class BrandedEmailTemplate(IConfiguration configuration)
     {
         var enabled = configuration.GetValue("EmailSignature:Enabled", true);
         var companyName = configuration["EmailSignature:CompanyName"] ?? "TriSend";
-        var tagline = configuration["EmailSignature:Tagline"] ?? "Transactional messaging platform";
+        var tagline = configuration["EmailSignature:Tagline"] ?? "Messaging Infrastructure Platform for Apps";
         var websiteUrl = configuration["EmailSignature:WebsiteUrl"] ?? "https://rajeevstech.in";
         var websiteLabel = configuration["EmailSignature:WebsiteLabel"] ?? "rajeevstech.in";
-        var footerText = configuration["EmailSignature:FooterText"] ?? "Sent by TriSend";
+        var footerText = configuration["EmailSignature:FooterText"] ?? "© 2026 TriSend. All rights reserved.";
         var loaderPath = configuration["EmailSignature:LoaderImagePath"] ?? DefaultLoaderPath;
         var loaderContentId = configuration["EmailSignature:LoaderContentId"] ?? DefaultLoaderContentId;
 
@@ -53,6 +53,8 @@ public sealed class BrandedEmailTemplate(IConfiguration configuration)
         var safeTagline = WebUtility.HtmlEncode(tagline);
         var safeWebsiteLabel = WebUtility.HtmlEncode(websiteLabel);
         var safeWebsiteUrl = WebUtility.HtmlEncode(websiteUrl);
+        var emailAddress = configuration["EmailSignature:Email"] ?? "support@rajeevstech.in";
+        var safeEmailAddress = WebUtility.HtmlEncode(emailAddress);
         var safeFooterText = WebUtility.HtmlEncode(footerText);
 
         var html = $"""
@@ -94,6 +96,8 @@ public sealed class BrandedEmailTemplate(IConfiguration configuration)
                     <td style="vertical-align:middle;font-family:Arial,Helvetica,sans-serif;">
                       <div style="font-size:12px;color:#6b7280;">{safeFooterText}</div>
                       <a href="{safeWebsiteUrl}" style="font-size:12px;color:#2563eb;text-decoration:none;">{safeWebsiteLabel}</a>
+                      <span style="font-size:12px;color:#9ca3af;">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+                      <a href="mailto:{safeEmailAddress}" style="font-size:12px;color:#2563eb;text-decoration:none;">{safeEmailAddress}</a>
                     </td>
                   </tr>
                 </table>
@@ -115,6 +119,7 @@ public sealed class BrandedEmailTemplate(IConfiguration configuration)
 {tagline}
 {websiteLabel}: {websiteUrl}
 {footerText}
+{emailAddress}
 """;
 
         return new EmailTemplate(
