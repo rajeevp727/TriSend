@@ -1,16 +1,16 @@
 # TriSend
 
-An API-first communications platform for **SMS, WhatsApp and email**.
+An API-first communications platform for **email**, with SMS and WhatsApp reserved for future provider integrations.
 
 ## Current MVP architecture
 
 ```
 React / client -> Render API -> Supabase PostgreSQL
                          |
-                         -> Render Background Worker -> SMTP
+                         -> Resend Email API
 ```
 
-The MVP currently sends **email** through SMTP. SMS and WhatsApp remain part of the API contract but are rejected by the worker until their providers are implemented.
+The API sends email directly to Resend over HTTPS. There is no SMTP dependency and no background worker in the current MVP.
 
 ## Send a message
 
@@ -25,11 +25,12 @@ Content-Type: application/json
   "channel": "email",
   "recipient": "customer@example.com",
   "subject": "Order update",
-  "body": "Your order has shipped."
+  "body": "Your order has shipped.",
+  "idempotencyKey": "order-123-shipped"
 }
 ```
 
-The API returns HTTP 202 with a queued message ID. The Render worker claims queued messages from PostgreSQL and updates the message status.
+The API stores the message in Supabase, sends it through Resend, and records the provider message ID and final status.
 
 ## Database
 
@@ -39,12 +40,11 @@ Apply migrations in the Supabase SQL editor. Do not create application tables ma
 
 ## Deployment
 
-The API and worker are Docker services built from the repository root context:
+The API is a Docker service built from the repository root:
 
-- API Dockerfile: `backend/TriSend.Api/Dockerfile`
-- Worker Dockerfile: `workers/TriSend.Worker/Dockerfile`
+- Dockerfile: `Dockerfile`
 
-Render can auto-deploy both services from the `main` branch.
+Render auto-deploys the API from the `main` branch.
 
 ## Documentation
 
