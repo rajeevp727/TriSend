@@ -2,15 +2,14 @@
 
 ## Prerequisites
 
-- .NET 8 SDK
+- .NET 10 SDK
 - Node.js 22+
 - Git
-- Azure CLI for Azure-connected development
 
 ## Backend
 
 ```bash
-dotnet run --project backend/Communication.Api/Communication.Api.csproj
+dotnet run --project backend/TriSend.Api/TriSend.Api.csproj
 ```
 
 Health check:
@@ -19,13 +18,7 @@ Health check:
 GET http://localhost:5000/health
 ```
 
-## Worker
-
-```bash
-dotnet run --project workers/Communication.Worker/Communication.Worker.csproj
-```
-
-The worker currently contains the host skeleton. Azure Service Bus consumption is added during the messaging implementation phase.
+The API requires PostgreSQL and Resend configuration through local environment variables or user-secrets.
 
 ## Frontend
 
@@ -39,4 +32,4 @@ Set the API URL through the Vite environment configuration.
 
 ## Local secrets
 
-Use user-secrets or local environment variables. Never commit provider credentials.
+Use user-secrets or local environment variables. Never commit database credentials, API keys, or provider credentials.
