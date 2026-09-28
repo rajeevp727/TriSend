@@ -1,4 +1,5 @@
 using TriSend.Api.Data;
+using TriSend.Api.Email;
 using TriSend.Contracts;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,6 +9,7 @@ namespace TriSend.Api.Controllers;
 [Route("v1/messages")]
 public sealed class MessagesController(
     MessageRepository repository,
+    ResendEmailSender emailSender,
     IConfiguration configuration) : ControllerBase
 {
     [HttpPost]
@@ -17,39 +19,104 @@ public sealed class MessagesController(
     {
         if (string.IsNullOrWhiteSpace(request.Recipient) ||
             string.IsNullOrWhiteSpace(request.Body))
-            return BadRequest(new { code = "validation_error", message = "Recipient and body are required." });
+        {
+            return BadRequest(new
+            {
+                code = "validation_error",
+                message = "Recipient and body are required."
+            });
+        }
 
         if (!Enum.TryParse<MessageChannel>(request.Channel, true, out var channel))
-            return BadRequest(new { code = "validation_error", message = "Channel must be sms, whatsapp, or email." });
+        {
+            return BadRequest(new
+            {
+                code = "validation_error",
+                message = "Channel must be email, sms, or whatsapp."
+            });
+        }
 
-        if (channel == MessageChannel.Email && string.IsNullOrWhiteSpace(request.Subject))
-            return BadRequest(new { code = "validation_error", message = "Subject is required for email." });
+        if (channel != MessageChannel.Email)
+        {
+            return BadRequest(new
+            {
+                code = "unsupported_channel",
+                message = "Only email is currently supported."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Subject))
+        {
+            return BadRequest(new
+            {
+                code = "validation_error",
+                message = "Subject is required for email."
+            });
+        }
 
         var tenantId = GetTenantId();
         var id = Guid.NewGuid();
         var createdAt = DateTimeOffset.UtcNow;
+        var recipient = request.Recipient.Trim();
+        var subject = request.Subject.Trim();
+        var body = request.Body.Trim();
 
         await repository.InsertAsync(
             new MessageRecord(
                 id,
                 tenantId,
-                channel.ToString().ToLowerInvariant(),
-                request.Recipient.Trim(),
-                request.Body.Trim(),
-                request.Subject?.Trim(),
-                "queued",
+                "email",
+                recipient,
+                body,
+                subject,
+                "processing",
                 null,
                 null,
                 createdAt,
                 null),
             cancellationToken);
 
-        return Accepted($"/v1/messages/{id}", new
+        try
         {
-            id,
-            status = "queued",
-            channel = channel.ToString().ToLowerInvariant()
-        });
+            var providerMessageId = await emailSender.SendAsync(
+                id,
+                recipient,
+                subject,
+                body,
+                cancellationToken);
+
+            await repository.UpdateStatusAsync(
+                id,
+                "sent",
+                providerMessageId,
+                null,
+                cancellationToken);
+
+            return Ok(new
+            {
+                id,
+                status = "sent",
+                channel = "email",
+                providerMessageId
+            });
+        }
+        catch (Exception ex)
+        {
+            await repository.UpdateStatusAsync(
+                id,
+                "failed",
+                null,
+                ex.Message,
+                cancellationToken);
+
+            return StatusCode(StatusCodes.Status502BadGateway, new
+            {
+                id,
+                status = "failed",
+                code = "email_provider_error",
+                message = "The email provider rejected or could not accept the message."
+            });
+        }
     }
 
     [HttpGet("{id:guid}")]
