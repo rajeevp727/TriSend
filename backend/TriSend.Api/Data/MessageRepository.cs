@@ -46,6 +46,37 @@ public sealed class MessageRepository(IConfiguration configuration)
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task UpdateStatusAsync(
+        Guid id,
+        string status,
+        string? providerMessageId,
+        string? error,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        const string sql = """
+            UPDATE messages
+            SET status = @status,
+                provider_message_id = COALESCE(@provider_message_id, provider_message_id),
+                error = @error,
+                sent_at = CASE WHEN @status = 'sent' THEN now() ELSE sent_at END,
+                updated_at_utc = now()
+            WHERE id = @id;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("id", id);
+        command.Parameters.AddWithValue("status", status);
+        command.Parameters.AddWithValue(
+            "provider_message_id",
+            (object?)providerMessageId ?? DBNull.Value);
+        command.Parameters.AddWithValue("error", (object?)error ?? DBNull.Value);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task<MessageRecord?> GetAsync(
         Guid tenantId,
         Guid id,
