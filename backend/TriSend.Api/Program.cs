@@ -48,7 +48,7 @@ app.MapGet("/health", () => Results.Ok(new
     utc = DateTimeOffset.UtcNow
 }));
 
-app.MapGet("/health/db", async (IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     var connectionString = configuration.GetConnectionString("Postgres");
 
