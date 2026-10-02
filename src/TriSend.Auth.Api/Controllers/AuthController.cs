@@ -16,6 +16,10 @@ public sealed class AuthController(IUserService users, ISessionService sessions,
     public async Task<IActionResult> Me(CancellationToken ct)
     {
         if (!Guid.TryParse(User.FindFirstValue("trisend_user_id"), out var userId)) return Unauthorized();
+        var sessionId = User.FindFirstValue("trisend_session_id");
+        if (!Guid.TryParse(sessionId, out var currentSessionId) ||
+            !await sessions.IsActiveAsync(currentSessionId, userId, ct)) return Unauthorized();
+
         var user = await users.GetByIdAsync(userId, ct);
         if (user is null || !user.IsActive) return Unauthorized();
         return Ok(new
