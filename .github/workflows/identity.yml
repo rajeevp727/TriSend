@@ -4,13 +4,17 @@ on:
   push:
     branches: [main, feature/central-identity]
     paths:
-      - 'src/TriSend.Auth.**/**'
+      - 'src/TriSend.Auth.*/**'
+      - 'tests/TriSend.Auth.Tests/**'
+      - 'sdk/typescript/**'
       - 'docs/identity/**'
       - '.github/workflows/identity.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'src/TriSend.Auth.**/**'
+      - 'src/TriSend.Auth.*/**'
+      - 'tests/TriSend.Auth.Tests/**'
+      - 'sdk/typescript/**'
       - 'docs/identity/**'
       - '.github/workflows/identity.yml'
 
@@ -19,8 +23,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+
       - run: dotnet restore src/TriSend.Auth.Api/TriSend.Auth.Api.csproj
       - run: dotnet build src/TriSend.Auth.Api/TriSend.Auth.Api.csproj --configuration Release --no-restore
+
+      - run: dotnet restore tests/TriSend.Auth.Tests/TriSend.Auth.Tests.csproj
+      - run: dotnet test tests/TriSend.Auth.Tests/TriSend.Auth.Tests.csproj --configuration Release --no-restore
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
+      - working-directory: sdk/typescript
+        run: npm install --no-package-lock
+
+      - working-directory: sdk/typescript
+        run: npm run build
