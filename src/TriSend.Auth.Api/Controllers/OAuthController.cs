@@ -157,7 +157,7 @@ public sealed class OAuthController(
 
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(Request.Query["scope"].ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        principal.SetResources(request.GetScopes().Where(s => s.EndsWith("-api", StringComparison.OrdinalIgnoreCase)));
+        principal.SetResources(Request.Query["scope"].ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(s => s.EndsWith("-api", StringComparison.OrdinalIgnoreCase)));
         principal.SetDestinations(claim => claim.Type switch
         {
             OpenIddictConstants.Claims.Email when principal.HasScope(OpenIddictConstants.Scopes.Email) =>
@@ -169,7 +169,7 @@ public sealed class OAuthController(
         });
 
         await audit.WriteAsync("OAUTH_LOGIN", user.Id, Request.Query["client_id"].ToString(), RemoteIp(), UserAgent(),
-            new { scopes = request.GetScopes(), sessionId }, ct);
+            new { scopes = Request.Query["scope"].ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries), sessionId }, ct);
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
