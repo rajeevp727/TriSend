@@ -211,8 +211,9 @@ public sealed class OAuthController(
         var result = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         if (Guid.TryParse(result.Principal?.FindFirstValue("trisend_user_id"), out var userId))
         {
-            await sessions.RevokeAllAsync(userId, ct);
-            await audit.WriteAsync("USER_LOGOUT_ALL", userId, null, RemoteIp(), UserAgent(), null, ct);
+            if (Guid.TryParse(result.Principal?.FindFirstValue("trisend_session_id"), out var sessionId))
+                await sessions.RevokeAsync(userId, sessionId, ct);
+            await audit.WriteAsync("USER_LOGOUT", userId, requestClientId, RemoteIp(), UserAgent(), null, ct);
         }
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return string.IsNullOrWhiteSpace(post_logout_redirect_uri)
