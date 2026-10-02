@@ -126,21 +126,18 @@ public sealed class OAuthController(
     [EnableRateLimiting("oauth")]
     public async Task<IActionResult> Authorize(CancellationToken ct)
     {
-        var request = HttpContext.GetOpenIddictServerRequest()
-            ?? throw new InvalidOperationException("OpenID Connect request cannot be retrieved.");
-
         var result = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         if (!result.Succeeded ||
             result.Principal?.FindFirstValue("trisend_user_id") is not { } userIdText ||
             !Guid.TryParse(userIdText, out var userId))
         {
-            if (request.HasPromptValue(OpenIddictConstants.PromptValues.None))
+            if (Request.Query["prompt"].ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("none", StringComparer.Ordinal))
                 return Forbid(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
 
             var returnUrl = Request.Scheme + "://" + Request.Host + Request.PathBase + Request.Path + Request.QueryString;
             var provider = Request.Query["provider"].ToString();
             var providerQuery = string.IsNullOrWhiteSpace(provider) ? "" : $"&provider={Uri.EscapeDataString(provider)}";
-            return Redirect($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}&client_id={Uri.EscapeDataString(request.ClientId!)}{providerQuery}");
+            return Redirect($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}&client_id={Uri.EscapeDataString(Request.Query["client_id"].ToString())}{providerQuery}");
         }
 
         var user = await users.GetByIdAsync(userId, ct);
@@ -159,7 +156,7 @@ public sealed class OAuthController(
         identity.AddClaim(new Claim("session_id", sessionId.ToString()));
 
         var principal = new ClaimsPrincipal(identity);
-        principal.SetScopes(request.GetScopes());
+        principal.SetScopes(Request.Query["scope"].ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
         principal.SetResources(request.GetScopes().Where(s => s.EndsWith("-api", StringComparison.OrdinalIgnoreCase)));
         principal.SetDestinations(claim => claim.Type switch
         {
@@ -171,7 +168,7 @@ public sealed class OAuthController(
             _ => [OpenIddictConstants.Destinations.AccessToken]
         });
 
-        await audit.WriteAsync("OAUTH_LOGIN", user.Id, request.ClientId, RemoteIp(), UserAgent(),
+        await audit.WriteAsync("OAUTH_LOGIN", user.Id, Request.Query["client_id"].ToString(), RemoteIp(), UserAgent(),
             new { scopes = request.GetScopes(), sessionId }, ct);
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
