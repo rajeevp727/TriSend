@@ -33,6 +33,8 @@ public static class IdentitySeeder
                 await applications.FindByClientIdAsync(clientId, ct) is not null) continue;
 
             var isPublic = bool.TryParse(client["Public"], out var p) && p;
+            if (!isPublic && string.IsNullOrWhiteSpace(client["ClientSecret"]))
+                throw new InvalidOperationException($"Confidential OAuth client '{clientId}' has no client secret configured.");
             var descriptor = new OpenIddictApplicationDescriptor
             {
                 ClientId = clientId,
