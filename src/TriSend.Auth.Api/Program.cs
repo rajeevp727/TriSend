@@ -136,6 +136,8 @@ builder.Services.AddOpenIddict()
             throw new InvalidOperationException("Production signing/encryption certificates are not configured.");
         }
 
+        options.AddEventHandler<ValidateTokenContext>(builder => builder.UseScopedHandler<SessionRefreshTokenValidationHandler>());
+
         options.UseAspNetCore()
             .EnableAuthorizationEndpointPassthrough()
             .EnableEndSessionEndpointPassthrough()
