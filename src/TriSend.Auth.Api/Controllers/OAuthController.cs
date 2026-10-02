@@ -234,7 +234,7 @@ public sealed class OAuthController(
 
         return await manager.ValidatePostLogoutRedirectUriAsync(
             application,
-            uri,
+            uri.ToString(),
             ct);
     }
 
