@@ -1,10 +1,12 @@
+using System.Net;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
-using OpenIddict.Validation.AspNetCore;
+using TriSend.Auth.Api;
 using TriSend.Auth.Application;
 using TriSend.Auth.Infrastructure;
 
@@ -12,7 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
 
 builder.Services.AddControllers();
-
+builder.Services.AddHealthChecks();
 builder.Services.AddDbContext<AuthDbContext>(options =>
 {
     options.UseSqlServer(config.GetConnectionString("Identity"));
@@ -21,163 +23,174 @@ builder.Services.AddDbContext<AuthDbContext>(options =>
 
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ISessionService, SessionService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddSingleton<CertificateLoader>();
+builder.Services.AddSingleton<IGoogleIdentityProvider, GoogleIdentityProvider>();
+builder.Services.AddSingleton<IMicrosoftIdentityProvider, MicrosoftIdentityProvider>();
+builder.Services.AddDataProtection().SetApplicationName("TriSend.Identity");
 
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 })
-.AddCookie(options =>
+.AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
 {
     options.Cookie.Name = "__Host-trisend-auth";
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Lax;
-    options.ExpireTimeSpan = TimeSpan.FromDays(30);
+    options.ExpireTimeSpan = TimeSpan.FromHours(8);
     options.SlidingExpiration = true;
     options.LoginPath = "/login";
 })
+.AddCookie("External", options =>
+{
+    options.Cookie.Name = "__Host-trisend-external";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+})
 .AddGoogle(GoogleDefaults.AuthenticationScheme, options =>
 {
-    options.ClientId = config["Google:ClientId"] ?? "";
-    options.ClientSecret = config["Google:ClientSecret"] ?? "";
-    options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    options.ClientId = config["Authentication:Google:ClientId"]
+        ?? throw new InvalidOperationException("Google client ID is not configured.");
+    options.ClientSecret = config["Authentication:Google:ClientSecret"]
+        ?? throw new InvalidOperationException("Google client secret is not configured.");
+    options.SignInScheme = "External";
     options.SaveTokens = false;
     options.Scope.Add("openid");
     options.Scope.Add("profile");
     options.Scope.Add("email");
-    options.Events.OnCreatingTicket = async context =>
-    {
-        var userService = context.HttpContext.RequestServices.GetRequiredService<IUserService>();
-        var sessions = context.HttpContext.RequestServices.GetRequiredService<ISessionService>();
-        var subject = context.User.FindFirst("sub")?.Value
-            ?? throw new SecurityTokenValidationException("Google subject missing.");
-        var email = context.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
-            ?? context.User.FindFirst("email")?.Value
-            ?? throw new SecurityTokenValidationException("Google email missing.");
-
-        var user = await userService.FindByExternalIdentityAsync("google", subject, context.HttpContext.RequestAborted)
-                   ?? await userService.CreateFromExternalIdentityAsync(
-                       "google", subject, email,
-                       context.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value,
-                       context.User.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value,
-                       context.User.FindFirst(System.Security.Claims.ClaimTypes.Surname)?.Value,
-                       context.User.FindFirst("picture")?.Value,
-                       true, context.HttpContext.RequestAborted);
-
-        await sessions.CreateAsync(
-            user.Id, context.Properties.Items.TryGetValue("client_id", out var clientId) ? clientId : null,
-            null, null, context.HttpContext.Connection.RemoteIpAddress?.ToString(),
-            context.HttpContext.Request.Headers.UserAgent.ToString(), context.HttpContext.RequestAborted);
-
-        context.Identity!.AddClaim(new System.Security.Claims.Claim("trisend_user_id", user.Id.ToString()));
-    };
 })
 .AddOpenIdConnect("Microsoft", options =>
 {
-    options.Authority = $"https://login.microsoftonline.com/{config["Microsoft:Tenant"] ?? "common"}/v2.0";
-    options.ClientId = config["Microsoft:ClientId"] ?? "";
-    options.ClientSecret = config["Microsoft:ClientSecret"] ?? "";
-    options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    options.Authority = $"https://login.microsoftonline.com/{config["Authentication:Microsoft:Tenant"] ?? "common"}/v2.0";
+    options.ClientId = config["Authentication:Microsoft:ClientId"]
+        ?? throw new InvalidOperationException("Microsoft client ID is not configured.");
+    options.ClientSecret = config["Authentication:Microsoft:ClientSecret"]
+        ?? throw new InvalidOperationException("Microsoft client secret is not configured.");
+    options.SignInScheme = "External";
     options.ResponseType = "code";
     options.UsePkce = true;
     options.SaveTokens = false;
+    options.MapInboundClaims = false;
     options.Scope.Clear();
     options.Scope.Add("openid");
     options.Scope.Add("profile");
     options.Scope.Add("email");
-    options.GetClaimsFromUserInfoEndpoint = true;
-    options.Events.OnTokenValidated = async context =>
-    {
-        var userService = context.HttpContext.RequestServices.GetRequiredService<IUserService>();
-        var sessions = context.HttpContext.RequestServices.GetRequiredService<ISessionService>();
-        var subject = context.Principal?.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value
-            ?? context.Principal?.FindFirst("sub")?.Value
-            ?? throw new SecurityTokenValidationException("Microsoft subject missing.");
-        var email = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
-            ?? context.Principal?.FindFirst("preferred_username")?.Value
-            ?? throw new SecurityTokenValidationException("Microsoft email missing.");
-
-        var user = await userService.FindByExternalIdentityAsync("microsoft", subject, context.HttpContext.RequestAborted)
-                   ?? await userService.CreateFromExternalIdentityAsync(
-                       "microsoft", subject, email,
-                       context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value,
-                       context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value,
-                       context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.Surname)?.Value,
-                       null, true, context.HttpContext.RequestAborted);
-
-        await sessions.CreateAsync(
-            user.Id, null, null, null, context.HttpContext.Connection.RemoteIpAddress?.ToString(),
-            context.HttpContext.Request.Headers.UserAgent.ToString(), context.HttpContext.RequestAborted);
-
-        var identity = (System.Security.Claims.ClaimsIdentity)context.Principal!.Identity!;
-        identity.AddClaim(new System.Security.Claims.Claim("trisend_user_id", user.Id.ToString()));
-    };
 });
 
 builder.Services.AddOpenIddict()
-    .AddCore(options =>
-    {
-        options.UseEntityFrameworkCore()
-               .UseDbContext<AuthDbContext>();
-    })
+    .AddCore(options => options.UseEntityFrameworkCore().UseDbContext<AuthDbContext>())
     .AddServer(options =>
     {
-        options.SetIssuer(new Uri(config["Authentication:Issuer"] ?? "https://auth.trisend.com"));
-        options.SetAuthorizationEndpointUris("/oauth/authorize");
-        options.SetTokenEndpointUris("/oauth/token");
-        options.SetUserinfoEndpointUris("/userinfo");
-        options.SetEndSessionEndpointUris("/oauth/logout");
+        options.SetIssuer(new Uri(config["Authentication:Issuer"]
+            ?? throw new InvalidOperationException("Authentication:Issuer is required.")));
+        options.SetAuthorizationEndpointUris("oauth/authorize");
+        options.SetTokenEndpointUris("oauth/token");
+        options.SetUserInfoEndpointUris("userinfo");
+        options.SetEndSessionEndpointUris("oauth/logout");
 
-        options.AllowAuthorizationCodeFlow();
-        options.AllowRefreshTokenFlow();
-        options.RequireProofKeyForCodeExchange();
+        options.AllowAuthorizationCodeFlow()
+            .AllowRefreshTokenFlow()
+            .RequireProofKeyForCodeExchange();
 
+        options.RegisterResources("greenpantry-api", "omegatech-api", "sprintdeck", "248works");
+        options.RegisterAudiences("greenpantry-api", "omegatech-api", "sprintdeck", "248works");
+        options.RegisterScopes(
+            OpenIddictConstants.Scopes.OpenId,
+            OpenIddictConstants.Scopes.Profile,
+            OpenIddictConstants.Scopes.Email,
+            OpenIddictConstants.Scopes.OfflineAccess);
+
+        options.SetAuthorizationCodeLifetime(TimeSpan.FromMinutes(5));
         options.SetAccessTokenLifetime(TimeSpan.FromMinutes(
             config.GetValue("Authentication:AccessTokenLifetimeMinutes", 10)));
         options.SetRefreshTokenLifetime(TimeSpan.FromDays(
             config.GetValue("Authentication:RefreshTokenLifetimeDays", 30)));
 
         options.DisableAccessTokenEncryption();
+        options.UseDataProtection();
 
-        options.AddDevelopmentEncryptionCertificate();
-        options.AddDevelopmentSigningCertificate();
+        var loader = new CertificateLoader(config);
+        var signing = loader.LoadAsync("Authentication:SigningCertificateSecretNames", CancellationToken.None)
+            .GetAwaiter().GetResult();
+        var encryption = loader.LoadAsync("Authentication:EncryptionCertificateSecretNames", CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        if (signing.Count > 0 && encryption.Count > 0)
+        {
+            foreach (var certificate in signing) options.AddSigningCertificate(certificate);
+            foreach (var certificate in encryption) options.AddEncryptionCertificate(certificate);
+        }
+        else if (builder.Environment.IsDevelopment() && config.GetValue("Authentication:AllowDevelopmentCertificates", true))
+        {
+            options.AddDevelopmentEncryptionCertificate()
+                .AddDevelopmentSigningCertificate();
+        }
+        else
+        {
+            throw new InvalidOperationException("Production signing/encryption certificates are not configured.");
+        }
 
         options.UseAspNetCore()
             .EnableAuthorizationEndpointPassthrough()
             .EnableEndSessionEndpointPassthrough()
             .EnableTokenEndpointPassthrough()
-            .EnableUserinfoEndpointPassthrough();
+            .EnableUserInfoEndpointPassthrough();
     })
     .AddValidation(options =>
     {
+        options.SetIssuer(config["Authentication:Issuer"]!);
         options.UseLocalServer();
         options.UseAspNetCore();
     });
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Identity", policy =>
-    {
-        var origins = config.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-        policy.WithOrigins(origins)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
-    });
+    var origins = config.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+    options.AddPolicy("Identity", policy => policy.WithOrigins(origins)
+        .AllowAnyHeader().AllowAnyMethod().AllowCredentials());
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("oauth", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
+        }));
+    options.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
+        }));
+});
+
+builder.Services.AddAuthorization();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+    foreach (var value in config.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+        if (IPAddress.TryParse(value, out var ip)) options.KnownProxies.Add(ip);
 });
 
 var app = builder.Build();
-
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
-app.UseCors("Identity");
 app.UseRouting();
+app.UseCors("Identity");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "trisend-identity" }));
+app.MapHealthChecks("/health");
 
-await IdentitySeeder.SeedAsync(app.Services, config);
-
+await IdentitySeeder.SeedAsync(app.Services, config, CancellationToken.None);
 app.Run();
