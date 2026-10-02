@@ -5,75 +5,63 @@ namespace TriSend.Auth.Api;
 
 public static class IdentitySeeder
 {
-    public static async Task SeedAsync(IServiceProvider services, IConfiguration configuration)
+    public static async Task SeedAsync(IServiceProvider services, IConfiguration configuration, CancellationToken ct)
     {
         using var scope = services.CreateScope();
-        var manager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
-        var scopeManager = scope.ServiceProvider.GetRequiredService<IOpenIddictScopeManager>();
+        var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+        var scopes = scope.ServiceProvider.GetRequiredService<IOpenIddictScopeManager>();
 
-        var scopes = new[]
+        foreach (var (name, displayName) in new[]
         {
-            ("greenpantry", "GreenPantry API"),
-            ("omegatech", "OmegaTech API"),
+            ("greenpantry-api", "GreenPantry API"),
+            ("omegatech-api", "OmegaTech API"),
             ("sprintdeck", "SprintDeck"),
             ("248works", "248 Works")
-        };
-
-        foreach (var (name, display) in scopes)
+        })
         {
-            if (await scopeManager.FindByNameAsync(name) is null)
-            {
-                await scopeManager.CreateAsync(new OpenIddictScopeDescriptor
+            if (await scopes.FindByNameAsync(name, ct) is null)
+                await scopes.CreateAsync(new OpenIddictScopeDescriptor
                 {
-                    Name = name,
-                    DisplayName = display,
-                    Resources = { name }
-                });
-            }
+                    Name = name, DisplayName = displayName, Resources = { name }
+                }, ct);
         }
 
-        var clients = new[]
+        foreach (var client in configuration.GetSection("OAuthClients").GetChildren())
         {
-            new { Id = "trisend", Name = "TriSend", Type = ClientTypes.Confidential, Secret = configuration["OAuthClients:TriSendSecret"], Redirect = "https://trisend.in/auth/callback" },
-            new { Id = "greenpantry", Name = "GreenPantry", Type = ClientTypes.Confidential, Secret = configuration["OAuthClients:GreenPantrySecret"], Redirect = "https://greenpantry.in/auth/callback" },
-            new { Id = "omegatech", Name = "OmegaTech", Type = ClientTypes.Confidential, Secret = configuration["OAuthClients:OmegaTechSecret"], Redirect = "https://omegatech.in/auth/callback" },
-            new { Id = "sprintdeck", Name = "SprintDeck", Type = ClientTypes.Public, Secret = (string?)null, Redirect = "https://sprintdeck.in/auth/callback" },
-            new { Id = "248works", Name = "248 Works", Type = ClientTypes.Public, Secret = (string?)null, Redirect = "https://248works.in/auth/callback" }
-        };
+            var clientId = client["ClientId"];
+            if (string.IsNullOrWhiteSpace(clientId) ||
+                await applications.FindByClientIdAsync(clientId, ct) is not null) continue;
 
-        foreach (var client in clients)
-        {
-            if (await manager.FindByClientIdAsync(client.Id) is not null) continue;
-
+            var isPublic = bool.TryParse(client["Public"], out var p) && p;
             var descriptor = new OpenIddictApplicationDescriptor
             {
-                ClientId = client.Id,
-                DisplayName = client.Name,
-                ClientType = client.Type,
-                ClientSecret = client.Secret,
-                ConsentType = ConsentTypes.Explicit,
-                RedirectUris = { new Uri(client.Redirect) },
-                Permissions =
-                {
-                    Permissions.Endpoints.Authorization,
-                    Permissions.Endpoints.Token,
-                    Permissions.Endpoints.EndSession,
-                    Permissions.GrantTypes.AuthorizationCode,
-                    Permissions.GrantTypes.RefreshToken,
-                    Permissions.ResponseTypes.Code,
-                    Permissions.Scopes.OpenId,
-                    Permissions.Scopes.Email,
-                    Permissions.Scopes.Profile
-                }
+                ClientId = clientId,
+                DisplayName = client["DisplayName"],
+                ClientType = isPublic ? ClientTypes.Public : ClientTypes.Confidential,
+                ClientSecret = isPublic ? null : client["ClientSecret"],
+                ConsentType = ConsentTypes.Implicit
             };
 
-            foreach (var (name, _) in scopes)
-                descriptor.Permissions.Add(Permissions.Prefixes.Scope + name);
+            foreach (var redirect in client.GetSection("RedirectUris").Get<string[]>() ?? [])
+                descriptor.RedirectUris.Add(new Uri(redirect));
+            foreach (var redirect in client.GetSection("PostLogoutRedirectUris").Get<string[]>() ?? [])
+                descriptor.PostLogoutRedirectUris.Add(new Uri(redirect));
 
-            if (client.Type == ClientTypes.Public)
-                descriptor.Requirements.Add(Requirements.Features.ProofKeyForCodeExchange);
+            descriptor.Permissions.Add(Permissions.Endpoints.Authorization);
+            descriptor.Permissions.Add(Permissions.Endpoints.Token);
+            descriptor.Permissions.Add(Permissions.Endpoints.EndSession);
+            descriptor.Permissions.Add(Permissions.GrantTypes.AuthorizationCode);
+            descriptor.Permissions.Add(Permissions.GrantTypes.RefreshToken);
+            descriptor.Permissions.Add(Permissions.ResponseTypes.Code);
+            descriptor.Permissions.Add(Permissions.Scopes.OpenId);
+            descriptor.Permissions.Add(Permissions.Scopes.Profile);
+            descriptor.Permissions.Add(Permissions.Scopes.Email);
 
-            await manager.CreateAsync(descriptor);
+            foreach (var allowed in client.GetSection("AllowedScopes").Get<string[]>() ?? [])
+                descriptor.Permissions.Add(Permissions.Prefixes.Scope + allowed);
+
+            if (isPublic) descriptor.Requirements.Add(Requirements.Features.ProofKeyForCodeExchange);
+            await applications.CreateAsync(descriptor, ct);
         }
     }
 }
