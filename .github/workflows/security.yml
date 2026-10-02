@@ -1,0 +1,73 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, feature/central-identity]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'sdk/typescript/**'
+      - '.github/workflows/security.yml'
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [csharp, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
+
+  dotnet-audit:
+    name: .NET dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet restore src/TriSend.Auth.Api/TriSend.Auth.Api.csproj
+      - run: dotnet list src/TriSend.Auth.Api/TriSend.Auth.Api.csproj package --vulnerable --include-transitive
+      - run: dotnet list src/TriSend.Auth.Api/TriSend.Auth.Api.csproj package --deprecated
+
+  npm-audit:
+    name: TypeScript dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk/typescript
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: sdk/typescript/package.json
+      - run: npm install --package-lock=false
+      - run: npm audit --audit-level=high
+
+  secret-patterns:
+    name: Secret pattern scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
