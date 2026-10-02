@@ -1,0 +1,3 @@
+# ZAP baseline rules are intentionally conservative for the identity service.
+# Format: rule_id  WARN|FAIL  URL  optional note
+# Keep this file under review as the deployed surface evolves.
