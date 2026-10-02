@@ -203,6 +203,11 @@ public sealed class OAuthController(
     [AllowAnonymous]
     public async Task<IActionResult> Logout([FromQuery] string? post_logout_redirect_uri, CancellationToken ct)
     {
+        var requestClientId = Request.Query["client_id"].ToString();
+        if (!string.IsNullOrWhiteSpace(post_logout_redirect_uri) &&
+            !await IsRegisteredPostLogoutRedirectAsync(requestClientId, post_logout_redirect_uri, ct))
+            return BadRequest(new { error = "invalid_post_logout_redirect_uri" });
+
         var result = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         if (Guid.TryParse(result.Principal?.FindFirstValue("trisend_user_id"), out var userId))
         {
@@ -213,6 +218,24 @@ public sealed class OAuthController(
         return string.IsNullOrWhiteSpace(post_logout_redirect_uri)
             ? Ok(new { logged_out = true })
             : Redirect(post_logout_redirect_uri);
+    }
+
+    private async Task<bool> IsRegisteredPostLogoutRedirectAsync(string? clientId, string redirectUri, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(clientId) || !Uri.TryCreate(redirectUri, UriKind.Absolute, out var uri))
+            return false;
+
+        // The logout redirect must be an exact registered URI. The authorization
+        // server remains the source of truth for client registrations.
+        var manager = HttpContext.RequestServices.GetRequiredService<OpenIddict.Abstractions.IOpenIddictApplicationManager>();
+        var application = await manager.FindByClientIdAsync(clientId, ct);
+        if (application is null)
+            return false;
+
+        return await manager.ValidatePostLogoutRedirectUriAsync(
+            application,
+            uri,
+            ct);
     }
 
     private IActionResult ChallengeExternal(string scheme, string returnUrl, string? clientId)
