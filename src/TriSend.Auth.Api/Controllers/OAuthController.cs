@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
@@ -64,7 +65,7 @@ public sealed class OAuthController(
 
         var providerName = result.Properties?.Items["provider"]
             ?? throw new InvalidOperationException("External provider missing.");
-        var provider = providerName switch
+        IExternalIdentityProvider provider = providerName switch
         {
             "google" => google,
             "microsoft" => microsoft,
@@ -91,8 +92,8 @@ public sealed class OAuthController(
                 var identity = new ClaimsIdentity(
                     CookieAuthenticationDefaults.AuthenticationScheme,
                     OpenIddictConstants.Claims.Name, OpenIddictConstants.Claims.Role);
-                identity.AddClaim(new Claim("trisend_user_id", user.Id.ToString()));
-                identity.AddClaim(new Claim("trisend_session_id", session.Id.ToString()));
+                identity.AddClaim(new System.Security.Claims.Claim("trisend_user_id", user.Id.ToString()));
+                identity.AddClaim(new System.Security.Claims.Claim("trisend_session_id", session.Id.ToString()));
 
                 await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
                     new ClaimsPrincipal(identity),
@@ -137,7 +138,7 @@ public sealed class OAuthController(
             if (request.HasPromptValue(OpenIddictConstants.PromptValues.None))
                 return Forbid(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
 
-            var returnUrl = Request.GetEncodedUrl();
+            var returnUrl = Request.Scheme + "://" + Request.Host + Request.PathBase + Request.Path + Request.QueryString;
             var provider = Request.Query["provider"].ToString();
             var providerQuery = string.IsNullOrWhiteSpace(provider) ? "" : $"&provider={Uri.EscapeDataString(provider)}";
             return Redirect($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}&client_id={Uri.EscapeDataString(request.ClientId!)}{providerQuery}");
