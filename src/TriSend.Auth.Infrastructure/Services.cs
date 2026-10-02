@@ -19,11 +19,11 @@ public sealed class UserService(AuthDbContext db):IUserService
         if(identity is not null)
         {
             if(!identity.User.IsActive)throw new UnauthorizedAccessException("ACCOUNT_DISABLED");
-            var u=identity.User;identity.LastLoginAt=DateTimeOffset.UtcNow;u.DisplayName=p.DisplayName??u.DisplayName;u.FirstName=p.FirstName??u.FirstName;u.LastName=p.LastName??u.LastName;u.ProfilePictureUrl=p.PictureUrl??u.ProfilePictureUrl;u.IsEmailVerified|=p.IsEmailVerified;u.LastLoginAt=DateTimeOffset.UtcNow;u.UpdatedAt=DateTimeOffset.UtcNow;await db.SaveChangesAsync(ct);return u;
+            var u=identity.User;identity.LastLoginAt=DateTime.UtcNow;u.DisplayName=p.DisplayName??u.DisplayName;u.FirstName=p.FirstName??u.FirstName;u.LastName=p.LastName??u.LastName;u.ProfilePictureUrl=p.PictureUrl??u.ProfilePictureUrl;u.IsEmailVerified|=p.IsEmailVerified;u.LastLoginAt=DateTime.UtcNow;u.UpdatedAt=DateTime.UtcNow;await db.SaveChangesAsync(ct);return u;
         }
         var normalized=p.Email.Trim().ToUpperInvariant();
         if(await db.Users.AnyAsync(x=>x.NormalizedEmail==normalized,ct))throw new AccountLinkRequiredException();
-        var user=new User{Email=p.Email.Trim(),NormalizedEmail=normalized,DisplayName=p.DisplayName,FirstName=p.FirstName,LastName=p.LastName,ProfilePictureUrl=p.PictureUrl,IsEmailVerified=p.IsEmailVerified,LastLoginAt=DateTimeOffset.UtcNow};
+        var user=new User{Email=p.Email.Trim(),NormalizedEmail=normalized,DisplayName=p.DisplayName,FirstName=p.FirstName,LastName=p.LastName,ProfilePictureUrl=p.PictureUrl,IsEmailVerified=p.IsEmailVerified,LastLoginAt=DateTime.UtcNow};
         user.ExternalIdentities.Add(new ExternalIdentity{User=user,Provider=p.Provider,ProviderSubject=p.Subject,EmailAtProvider=p.Email});db.Users.Add(user);await db.SaveChangesAsync(ct);return user;
     }
     public async Task LinkExternalIdentityAsync(Guid userId,ExternalIdentityProfile p,CancellationToken ct)
@@ -37,14 +37,14 @@ public sealed class SessionService(AuthDbContext db):ISessionService
 {
     public async Task<AuthSession>CreateAsync(Guid userId,string? clientId,string? deviceId,string? deviceName,string? ip,string? userAgent,CancellationToken ct)
     {
-        await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);var now=DateTimeOffset.UtcNow;
+        await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);var now=DateTime.UtcNow;
         if(await db.AuthSessions.CountAsync(x=>x.UserId==userId&&x.RevokedAt==null&&x.ExpiresAt>now,ct)>=3)throw new MaxSessionsReachedException();
         var s=new AuthSession{UserId=userId,ClientId=clientId,DeviceId=deviceId,DeviceName=deviceName,CreatedByIp=ip,UserAgent=userAgent,CreatedAt=now,LastActivityAt=now,ExpiresAt=now.AddDays(30)};db.AuthSessions.Add(s);await db.SaveChangesAsync(ct);await tx.CommitAsync(ct);return s;
     }
-    public async Task<IReadOnlyList<AuthSession>>GetActiveAsync(Guid userId,CancellationToken ct)=>await db.AuthSessions.AsNoTracking().Where(x=>x.UserId==userId&&x.RevokedAt==null&&x.ExpiresAt>DateTimeOffset.UtcNow).OrderByDescending(x=>x.LastActivityAt).ToListAsync(ct);
-    public async Task<bool>RevokeAsync(Guid userId,Guid sessionId,CancellationToken ct){var s=await db.AuthSessions.SingleOrDefaultAsync(x=>x.Id==sessionId&&x.UserId==userId&&x.RevokedAt==null,ct);if(s is null)return false;s.RevokedAt=DateTimeOffset.UtcNow;await db.SaveChangesAsync(ct);return true;}
-    public async Task<int>RevokeAllAsync(Guid userId,CancellationToken ct){var ss=await db.AuthSessions.Where(x=>x.UserId==userId&&x.RevokedAt==null).ToListAsync(ct);foreach(var s in ss)s.RevokedAt=DateTimeOffset.UtcNow;await db.SaveChangesAsync(ct);return ss.Count;}
-    public Task<bool>IsActiveAsync(Guid sessionId,Guid userId,CancellationToken ct)=>db.AuthSessions.AnyAsync(x=>x.Id==sessionId&&x.UserId==userId&&x.RevokedAt==null&&x.ExpiresAt>DateTimeOffset.UtcNow,ct);
+    public async Task<IReadOnlyList<AuthSession>>GetActiveAsync(Guid userId,CancellationToken ct)=>await db.AuthSessions.AsNoTracking().Where(x=>x.UserId==userId&&x.RevokedAt==null&&x.ExpiresAt>DateTime.UtcNow).OrderByDescending(x=>x.LastActivityAt).ToListAsync(ct);
+    public async Task<bool>RevokeAsync(Guid userId,Guid sessionId,CancellationToken ct){var s=await db.AuthSessions.SingleOrDefaultAsync(x=>x.Id==sessionId&&x.UserId==userId&&x.RevokedAt==null,ct);if(s is null)return false;s.RevokedAt=DateTime.UtcNow;await db.SaveChangesAsync(ct);return true;}
+    public async Task<int>RevokeAllAsync(Guid userId,CancellationToken ct){var ss=await db.AuthSessions.Where(x=>x.UserId==userId&&x.RevokedAt==null).ToListAsync(ct);foreach(var s in ss)s.RevokedAt=DateTime.UtcNow;await db.SaveChangesAsync(ct);return ss.Count;}
+    public Task<bool>IsActiveAsync(Guid sessionId,Guid userId,CancellationToken ct)=>db.AuthSessions.AnyAsync(x=>x.Id==sessionId&&x.UserId==userId&&x.RevokedAt==null&&x.ExpiresAt>DateTime.UtcNow,ct);
 }
 public sealed class AuditService(AuthDbContext db):IAuditService
 {
