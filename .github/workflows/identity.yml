@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, feature/central-identity]
     paths:
-      - 'src/TriSend.Auth.*/**'
+      - 'src/TriSend.Auth.**/**'
       - 'tests/TriSend.Auth.Tests/**'
       - 'sdk/typescript/**'
       - 'docs/identity/**'
