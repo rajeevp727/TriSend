@@ -1,43 +1,47 @@
-# Consuming Project SendGrid
+# Consuming TriSend Messaging
 
-Project SendGrid is an API-first communications platform.
+TriSend is an API-first communications platform. Applications consume the messaging API rather than integrating directly with individual delivery providers.
 
-Other applications should NOT integrate directly with Twilio, WhatsApp Cloud API, SMTP or individual SMS vendors. They integrate with Project SendGrid once, and Project SendGrid handles provider selection, authentication, retries, delivery status and webhooks.
+The current platform also provides centralized authentication through TriSend Identity. Authentication and messaging are separate concerns.
 
 ## Integration model
 
-```text
+~~~text
 GreenPantry / SprintDeck / Any App
              |
-             | HTTPS + API Key
+       OIDC login via TriSend Identity
+             |
              v
-      Project SendGrid API
+        Application API
              |
-       Azure Service Bus
+             | HTTPS + bearer access token
+             v
+        TriSend Messaging API
              |
-          Worker
-      /       |       \
-    SMS    WhatsApp   Email
-    Provider Provider Provider
-```
+       SMS / WhatsApp / Email providers
+~~~
 
-## REST API
+## Authentication
 
-Every application can consume the platform without an SDK.
+Applications should use TriSend Identity for user authentication where they are registered as OIDC clients.
 
-Base URL:
+- Browser applications: Authorization Code + PKCE, public client.
+- Server-side applications: confidential client where appropriate.
+- APIs: validate TriSend-issued JWTs and the API-specific audience/resource.
 
-`https://api.your-domain.com/v1`
+See [identity/README.md](./identity/README.md) and [identity/dotnet-api.md](./identity/dotnet-api.md).
 
-Authentication:
+## Messaging REST API
 
-`Authorization: Bearer <API_KEY>`
+The messaging API remains the canonical application-to-TriSend messaging contract.
 
-### Send SMS
+Base URL and deployment-specific authentication details should come from the active environment configuration. Do not hard-code production endpoints or secrets in documentation examples.
 
-```http
+Example:
+
+~~~http
 POST /v1/messages
-Authorization: Bearer <API_KEY>
+Authorization: Bearer <application-token>
 Content-Type: application/json
 
 {
@@ -46,79 +50,22 @@ Content-Type: application/json
   "body": "Your OTP is 123456",
   "idempotencyKey": "otp-login-123456"
 }
-```
+~~~
 
-### Send WhatsApp
+For WhatsApp or email, use the corresponding channel and message fields defined by [API.md](./API.md).
 
-```http
-POST /v1/messages
-Authorization: Bearer <API_KEY>
-Content-Type: application/json
+## Provider isolation
 
-{
-  "channel": "whatsapp",
-  "recipient": "+919876543210",
-  "body": "Your order #10045 has been confirmed.",
-  "idempotencyKey": "order-10045-confirmed"
-}
-```
+Consumer applications must not need to know provider credentials for SMS, WhatsApp or email.
 
-### Send Email
+Provider credentials, retries, delivery status and provider-specific behavior remain behind the TriSend messaging API boundary.
 
-```http
-POST /v1/messages
-Authorization: Bearer <API_KEY>
-Content-Type: application/json
+## Application authorization
 
-{
-  "channel": "email",
-  "recipient": "customer@example.com",
-  "subject": "Order confirmed",
-  "body": "Your order #10045 has been confirmed.",
-  "idempotencyKey": "order-10045-email"
-}
-```
+Authentication through TriSend Identity does not replace application authorization.
 
-## SDK model
+Each consuming application remains responsible for its own roles, permissions, tenant/business rules and access checks. A valid identity token is not sufficient to authorize every operation.
 
-For .NET applications, expose a typed client:
+## API key migration note
 
-```csharp
-services.AddProjectSendGrid(options =>
-{
-    options.BaseUrl = "https://api.your-domain.com";
-    options.ApiKey = configuration["ProjectSendGrid:ApiKey"]!;
-});
-
-await client.SendSmsAsync("+919876543210", "Your OTP is 123456");
-await client.SendWhatsAppAsync("+919876543210", "Your order is confirmed.");
-await client.SendEmailAsync(
-    "customer@example.com",
-    "Order confirmed",
-    "Your order is confirmed.");
-```
-
-The SDK is a convenience layer. The REST API remains the canonical contract.
-
-## API key isolation
-
-Create a separate API key per consuming application/environment where practical:
-
-- GreenPantry-dev
-- GreenPantry-prod
-- SprintDeck-dev
-- SprintDeck-prod
-
-This makes rotation, revocation and usage tracking possible without changing application code.
-
-## Important design rule
-
-Consumer applications know only:
-
-- Project SendGrid API URL
-- API key
-- channel
-- recipient
-- message/template data
-
-Consumer applications do NOT know provider credentials.
+Older documentation referred to a generic Project SendGrid API-key integration. That is no longer the identity architecture for the platform. New application integrations should use the centralized TriSend Identity model where an authenticated application/user flow is required, while messaging-specific machine credentials should follow the active messaging API contract.
