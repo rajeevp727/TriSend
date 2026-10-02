@@ -96,7 +96,7 @@ public sealed class OAuthController(
 
                 await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
                     new ClaimsPrincipal(identity),
-                    new AuthenticationProperties { IsPersistent = true, ExpiresUtc = session.ExpiresAt });
+                    new AuthenticationProperties { IsPersistent = true, ExpiresUtc = new DateTimeOffset(session.ExpiresAt) });
 
                 await audit.WriteAsync("USER_LOGIN", user.Id, clientId, RemoteIp(), UserAgent(),
                     new { provider = profile.Provider, sessionId = session.Id }, ct);
