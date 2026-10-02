@@ -157,7 +157,10 @@ public sealed class OAuthController(
 
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(Request.Query["scope"].ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        principal.SetResources(Request.Query["scope"].ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(s => s.EndsWith("-api", StringComparison.OrdinalIgnoreCase)));
+        var requestedScopes = Request.Query["scope"].ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var resources = requestedScopes.Where(s =>
+            s is "greenpantry-api" or "omegatech-api" or "sprintdeck" or "248works");
+        principal.SetResources(resources);
         principal.SetDestinations(claim => claim.Type switch
         {
             OpenIddictConstants.Claims.Email when principal.HasScope(OpenIddictConstants.Scopes.Email) =>
