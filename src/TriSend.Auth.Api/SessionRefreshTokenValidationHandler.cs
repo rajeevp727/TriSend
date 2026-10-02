@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using OpenIddict.Abstractions;
 using OpenIddict.Server;
+using static OpenIddict.Abstractions.OpenIddictConstants;
 using TriSend.Auth.Application;
 using static OpenIddict.Server.OpenIddictServerEvents;
 using static OpenIddict.Server.OpenIddictServerHandlers.Protection;
