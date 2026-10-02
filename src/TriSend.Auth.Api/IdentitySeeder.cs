@@ -53,12 +53,16 @@ public static class IdentitySeeder
             descriptor.Permissions.Add(Permissions.GrantTypes.AuthorizationCode);
             descriptor.Permissions.Add(Permissions.GrantTypes.RefreshToken);
             descriptor.Permissions.Add(Permissions.ResponseTypes.Code);
-            descriptor.Permissions.Add(Permissions.Scopes.OpenId);
             descriptor.Permissions.Add(Permissions.Scopes.Profile);
             descriptor.Permissions.Add(Permissions.Scopes.Email);
+            descriptor.Permissions.Add(Permissions.Prefixes.Scope + "offline_access");
 
             foreach (var allowed in client.GetSection("AllowedScopes").Get<string[]>() ?? [])
+            {
                 descriptor.Permissions.Add(Permissions.Prefixes.Scope + allowed);
+                descriptor.AddAudiencePermissions(allowed);
+                descriptor.AddResourcePermissions(allowed);
+            }
 
             if (isPublic) descriptor.Requirements.Add(Requirements.Features.ProofKeyForCodeExchange);
             await applications.CreateAsync(descriptor, ct);
