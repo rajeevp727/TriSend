@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
@@ -24,9 +25,10 @@ public sealed class OAuthController(
     [HttpGet("~/login")]
     [AllowAnonymous]
     [EnableRateLimiting("login")]
-    public IActionResult Login([FromQuery] string returnUrl, [FromQuery] string? client_id = null)
+    public IActionResult Login([FromQuery] string returnUrl, [FromQuery] string? client_id = null, [FromQuery] string? provider = null)
     {
         if (!IsLocalAuthorizeUrl(returnUrl)) return BadRequest(new { error = "invalid_return_url" });
+        if (provider is "google" or "microsoft") return ChallengeExternal(provider == "google" ? GoogleDefaults.AuthenticationScheme : "Microsoft", returnUrl, client_id);
         var encoded = Uri.EscapeDataString(returnUrl);
         var client = string.IsNullOrWhiteSpace(client_id) ? "" : $"&client_id={Uri.EscapeDataString(client_id)}";
         return Content($"""
@@ -132,11 +134,13 @@ public sealed class OAuthController(
             result.Principal?.FindFirstValue("trisend_user_id") is not { } userIdText ||
             !Guid.TryParse(userIdText, out var userId))
         {
-            if (request.HasPromptValue(OpenIddictConstants.Prompts.None))
+            if (request.HasPromptValue(OpenIddictConstants.PromptValues.None))
                 return Forbid(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
 
             var returnUrl = Request.GetEncodedUrl();
-            return Redirect($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}&client_id={Uri.EscapeDataString(request.ClientId!)}");
+            var provider = Request.Query["provider"].ToString();
+            var providerQuery = string.IsNullOrWhiteSpace(provider) ? "" : $"&provider={Uri.EscapeDataString(provider)}";
+            return Redirect($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}&client_id={Uri.EscapeDataString(request.ClientId!)}{providerQuery}");
         }
 
         var user = await users.GetByIdAsync(userId, ct);
@@ -230,7 +234,7 @@ public sealed class OAuthController(
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)) return false;
         return string.Equals(uri.Scheme, Request.Scheme, StringComparison.OrdinalIgnoreCase) &&
                string.Equals(uri.Host, Request.Host.Host, StringComparison.OrdinalIgnoreCase) &&
-               uri.Port == Request.Host.Port &&
+               uri.Port == (Request.Host.Port ?? (Request.IsHttps ? 443 : 80)) &&
                string.Equals(uri.AbsolutePath, "/oauth/authorize", StringComparison.Ordinal);
     }
 
