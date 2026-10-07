@@ -122,6 +122,9 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: 248 Works employer job form now formats salary input using Indian-number grouping (e.g. 15000 -> 15,000), and job description is optional; consumer commit `e1a1192fffeb4e900d949e36310c9a4c5209c9ce`.
 
+
+2026-10-07: 248 Works UI/UX polish: refined navigation and action labels (`Find Jobs`, `For Employers`, `Applications`, `Post a Job`, `View Job`, `Apply Now`, `Publish Job`), added consistent focus/hover/active states, card elevation, form interaction polish, optional-field styling, and responsive button improvements; consumer commits `d56d348041e1300551f0ec4d300c73757defdabb` and `494283230c289f1d5f3badd712a276b64710e58c`.
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
