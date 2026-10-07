@@ -125,6 +125,9 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: 248 Works UI/UX polish: refined navigation and action labels (`Find Jobs`, `For Employers`, `Applications`, `Post a Job`, `View Job`, `Apply Now`, `Publish Job`), added consistent focus/hover/active states, card elevation, form interaction polish, optional-field styling, and responsive button improvements; consumer commits `d56d348041e1300551f0ec4d300c73757defdabb` and `494283230c289f1d5f3badd712a276b64710e58c`.
 
+
+2026-10-07: Fixed 248 Works employer `Publish Job` form navigation by preventing native form submission before authentication/business logic; unauthenticated submits now keep the SPA route instead of navigating to `/`. Consumer commit `0d5dc9b6a9b9000f51bcb89752a49df0bd4c9a1c`.
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
