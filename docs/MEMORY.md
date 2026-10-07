@@ -130,6 +130,8 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: 248 Works popup behavior standardized: modal dialogs now close only through their explicit close (×) controls; clicking the backdrop/outside a popup no longer dismisses it. Applied to job details and authentication dialogs; consumer commits `61adceb0646980bac2ad7d745ac945fa31063c44` and `fc29912c7e82799b115ddd0b746986f35fad073d`.
 
+2026-10-07: Deployment status reporting rule: after every 248 Works PR/code deployment-triggering change, provide deployment status polls until the relevant GitHub Actions/Azure Static Web Apps deployment reaches a terminal state. Report the run number, commit SHA, status/conclusion, and any failure details when available; never claim deployment success without verified CI/CD evidence.
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
