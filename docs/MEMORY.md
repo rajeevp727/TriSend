@@ -151,6 +151,9 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: 248 Works authentication modal UX was simplified so Login and Sign up are mutually exclusive modes. Removed the duplicate two-tab presentation; each mode now has one contextual switch at the bottom. Consumer commits: 79535494beac1b99cd48abe993a8b0a79b11e45b and 61f1b0613ffe0999a817526252d827278dbca491. Azure Static Web Apps Run #109 for the latest commit is currently in progress; do not claim deployment success until terminal CI evidence is available.
 
+
+2026-10-07: 248 Works header was simplified to remove duplicate Find Jobs and Post a Job actions. Primary job-entry actions remain in the page body/hero; the top-right header is reserved for account and authenticated workspace navigation. Consumer commit: 83ac41e1cc29d594de3e7560702655bd55e1f5b4. Azure Static Web Apps Run #110 is queued for this change.
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
