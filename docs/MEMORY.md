@@ -119,6 +119,9 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: 248 Works footer updated so Privacy and Grievance are navigation links at `/privacy` and `/grievance`; consumer commit `32500e685112bbd6828f92a45e09b0af61aae3f5`.
 
+
+2026-10-07: 248 Works employer job form now formats salary input using Indian-number grouping (e.g. 15000 -> 15,000), and job description is optional; consumer commit `e1a1192fffeb4e900d949e36310c9a4c5209c9ce`.
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
