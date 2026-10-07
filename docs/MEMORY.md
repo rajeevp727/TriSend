@@ -163,3 +163,5 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
 After every future code update: RE-READ THIS FILE -> update memory if state changed -> validate/report verified state.
+
+2026-10-07: Render deployment reliability optimization: bounded the PostgreSQL diagnostic health probe with 3-second Npgsql connection/command timeouts so Supabase connectivity failures fail fast instead of consuming the deployment health-check window. Render's deployment health-check path should use the lightweight /health endpoint; /health/db remains a diagnostic readiness probe and should not gate deployment while PostgreSQL connectivity is being resolved. Code commit: 0c9da6d294f1a6679160cd4e5cd1087c36d02eb8.
