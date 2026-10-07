@@ -148,6 +148,9 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: Verified 248 Works frontend deployment for the role-aware authentication UX: Azure Static Web Apps Run #107, commit 0d417ab2ca4898d90a3efb6422dfac4bf65ed0cc, completed successfully. TriSend Backend CI Run #82 built TriSend.Api successfully, but the overall workflow remained failed because the separate TriSend.Worker restore step failed; authentication API deployment remains subject to the existing deployment verification gate.
 
+
+2026-10-07: 248 Works authentication modal UX was simplified so Login and Sign up are mutually exclusive modes. Removed the duplicate two-tab presentation; each mode now has one contextual switch at the bottom. Consumer commits: 79535494beac1b99cd48abe993a8b0a79b11e45b and 61f1b0613ffe0999a817526252d827278dbca491. Azure Static Web Apps Run #109 for the latest commit is currently in progress; do not claim deployment success until terminal CI evidence is available.
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
