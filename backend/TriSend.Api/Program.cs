@@ -104,6 +104,9 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
         var sqlState = ex is PostgresException postgresException
             ? postgresException.SqlState
             : null;
+        var inner = ex.InnerException;
+        var safeMessage = RedactDatabaseSecrets(
+            inner?.Message ?? ex.Message);
 
         return Results.Json(
             new
@@ -112,7 +115,8 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
                 database = "postgres",
                 reason = "connection_failed",
                 errorType,
-                sqlState
+                sqlState,
+                errorMessage = safeMessage
             },
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
@@ -121,3 +125,21 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
 app.MapControllers();
 
 app.Run();
+
+
+static string RedactDatabaseSecrets(string message)
+{
+    if (string.IsNullOrWhiteSpace(message))
+    {
+        return "No provider error message was returned.";
+    }
+
+    var redacted = System.Text.RegularExpressions.Regex.Replace(
+        message,
+        @"(?i)(password|pwd)\s*=\s*[^;\s]+",
+        "$1=[REDACTED]");
+
+    return redacted.Length <= 500
+        ? redacted
+        : redacted[..500];
+}
