@@ -7,11 +7,11 @@ COPY shared/TriSend.Contracts/TriSend.Contracts.csproj ./shared/TriSend.Contract
 
 RUN dotnet restore backend/TriSend.Api/TriSend.Api.csproj
 
-COPY backend ./backend
+COPY backend/TriSend.Api ./backend/TriSend.Api
 COPY shared ./shared
 
 WORKDIR /src/backend/TriSend.Api
-RUN dotnet publish TriSend.Api.csproj -c Release -o /app/publish --no-restore
+RUN dotnet publish TriSend.Api.csproj -c Release -o /app/publish --no-restore -p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
