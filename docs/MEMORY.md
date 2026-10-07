@@ -132,6 +132,8 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: Deployment status reporting rule: after every 248 Works PR/code deployment-triggering change, provide deployment status polls until the relevant GitHub Actions/Azure Static Web Apps deployment reaches a terminal state. Report the run number, commit SHA, status/conclusion, and any failure details when available; never claim deployment success without verified CI/CD evidence.
 
+2026-10-07: 248 Works popup keyboard behavior standardized: pressing Escape now closes open job-details and authentication popups, while clicking the backdrop/outside still does not dismiss them. Explicit × close buttons remain supported; consumer commits `b7f50e49fe227093ee08ea977caac45e0514c312` and `cfc481df380d6cdbd88b531982e33017d2317ab3`.
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
