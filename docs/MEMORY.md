@@ -117,6 +117,8 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: Added central OAuth/JWT authentication, PostgreSQL auth schema, session management, 248 Works integration, removal of SWA authentication, and this engineering memory.
 
+2026-10-07: TriSend Render deployment diagnostics and build-time optimization: PostgreSQL health-check failures now log the server-side exception without logging connection-string secrets; Docker build context was narrowed to TriSend.Api plus shared contracts, and publish uses UseAppHost=false to reduce unnecessary image/build output.
+
 2026-10-07: 248 Works footer updated so Privacy and Grievance are navigation links at `/privacy` and `/grievance`; consumer commit `32500e685112bbd6828f92a45e09b0af61aae3f5`.
 
 
