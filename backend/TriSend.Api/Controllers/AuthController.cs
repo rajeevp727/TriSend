@@ -78,6 +78,60 @@ public sealed class AuthController : ControllerBase
         }
     }
 
+    [HttpPost("register")]
+    public async Task<IActionResult> Register([FromBody] PasswordRegisterRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _auth.RegisterWithPasswordAsync(
+                request.Email,
+                request.Password,
+                request.Name,
+                request.AppId,
+                request.Role,
+                request.ReplaceOldest,
+                Request.Headers.UserAgent.ToString(),
+                HttpContext.Connection.RemoteIpAddress?.ToString(),
+                ct);
+            return Ok(result);
+        }
+        catch (AuthException ex)
+        {
+            return StatusCode(ex.StatusCode, new
+            {
+                code = ex.Code,
+                message = ex.Message,
+                maxSessions = ex.MaxSessions
+            });
+        }
+    }
+
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] PasswordLoginRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _auth.LoginWithPasswordAsync(
+                request.Email,
+                request.Password,
+                request.AppId,
+                request.ReplaceOldest,
+                Request.Headers.UserAgent.ToString(),
+                HttpContext.Connection.RemoteIpAddress?.ToString(),
+                ct);
+            return Ok(result);
+        }
+        catch (AuthException ex)
+        {
+            return StatusCode(ex.StatusCode, new
+            {
+                code = ex.Code,
+                message = ex.Message,
+                maxSessions = ex.MaxSessions
+            });
+        }
+    }
+
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest request, CancellationToken ct)
     {
@@ -202,4 +256,16 @@ public sealed class AuthController : ControllerBase
 
     public sealed record ExchangeRequest(string Code, bool ReplaceOldest = false);
     public sealed record RefreshRequest(string RefreshToken);
+    public sealed record PasswordRegisterRequest(
+        string Email,
+        string Password,
+        string? Name,
+        string AppId,
+        string Role,
+        bool ReplaceOldest = false);
+    public sealed record PasswordLoginRequest(
+        string Email,
+        string Password,
+        string AppId,
+        bool ReplaceOldest = false);
 }
