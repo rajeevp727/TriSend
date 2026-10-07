@@ -165,3 +165,5 @@ Before every future code update: READ THIS FILE -> inspect code -> make change -
 After every future code update: RE-READ THIS FILE -> update memory if state changed -> validate/report verified state.
 
 2026-10-07: Render deployment reliability optimization: bounded the PostgreSQL diagnostic health probe with 3-second Npgsql connection/command timeouts so Supabase connectivity failures fail fast instead of consuming the deployment health-check window. Render's deployment health-check path should use the lightweight /health endpoint; /health/db remains a diagnostic readiness probe and should not gate deployment while PostgreSQL connectivity is being resolved. Code commit: 0c9da6d294f1a6679160cd4e5cd1087c36d02eb8.
+
+2026-10-07: Render health-check compatibility fix: Render's internal health probe issued HEAD /health, while the endpoint was GET-only and returned 404. The liveness endpoint now explicitly accepts both GET and HEAD; Render health-check path remains /health. Code commit: bcea46acf27e4ffdfbf6df7e9892e8f4c148d901.
