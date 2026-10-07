@@ -140,6 +140,11 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 
 
+
+2026-10-07: Added centralized email/credential authentication and app-scoped role persistence for first-party consumers. New TriSend endpoints: POST /auth/register and POST /auth/login. Credentials are stored only as PBKDF2-derived hashes with per-user salts. New PostgreSQL migration 003_password_and_app_roles.sql adds auth_password_credentials and auth_user_roles. OAuth sign-in now reuses the persisted role for an app after first assignment. TriSend commits: 977e9340597487a4c677cca89b0c18f43dbf4624, 97d6286b0d611f525095e5d7239ecae1b66b0df9, 4e693c18a25b067ad6bd6cc6a36b8908d8da0d55.
+
+2026-10-07: 248 Works authentication UX now exposes Log in / Sign up in the top-right, supports email/credential auth plus Google/Microsoft via TriSend, lets new users choose Employee or Employer, and conditionally shows Find Jobs / Post a Job based on the authenticated role. Consumer commits: 79b27139653c9718ff68117176eec44f9dccf609, dd36965c282119dd8aa0e0d03695e472c0f2a70e, d7091373761c9b9a6dc3cc6a6168e668eb4b4c64, 0d417ab2ca4898d90a3efb6422dfac4bf65ed0cc.
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
