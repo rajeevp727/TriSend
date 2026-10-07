@@ -50,6 +50,11 @@ public sealed class AuthService
 
         var clientId = _configuration[$"Auth:{ProviderName(provider)}:ClientId"]
             ?? throw Missing($"Auth:{ProviderName(provider)}:ClientId");
+        var callbackBase = (_configuration["Auth:PublicBaseUrl"] ?? "").TrimEnd('/');
+        if (!Uri.TryCreate(callbackBase, UriKind.Absolute, out _))
+            throw Missing("Auth:PublicBaseUrl");
+        var oauthRedirectUri = $"{callbackBase}/auth/{provider.ToLowerInvariant()}/callback";
+
         var authorizationEndpoint = provider.ToLowerInvariant() == "google"
             ? "https://accounts.google.com/o/oauth2/v2/auth"
             : "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
@@ -60,7 +65,7 @@ public sealed class AuthService
 
         return authorizationEndpoint
             + "?client_id=" + Uri.EscapeDataString(clientId)
-            + "&redirect_uri=" + Uri.EscapeDataString(redirectUri)
+            + "&redirect_uri=" + Uri.EscapeDataString(oauthRedirectUri)
             + "&response_type=code"
             + "&scope=" + Uri.EscapeDataString(scope)
             + "&state=" + Uri.EscapeDataString(state)
@@ -93,7 +98,9 @@ public sealed class AuthService
         if (!string.Equals(provider, storedProvider, StringComparison.OrdinalIgnoreCase))
             throw new AuthException("invalid_state", "The sign-in provider does not match.", 400);
 
-        var accessToken = await ExchangeProviderCodeAsync(provider, code, redirectUri, verifier, ct);
+        var callbackBase = (_configuration["Auth:PublicBaseUrl"] ?? "").TrimEnd('/');
+        var oauthRedirectUri = $"{callbackBase}/auth/{provider.ToLowerInvariant()}/callback";
+        var accessToken = await ExchangeProviderCodeAsync(provider, code, oauthRedirectUri, verifier, ct);
         var profile = await GetProfileAsync(provider, accessToken, ct);
         var userId = await UpsertUserAsync(db, profile, provider, ct);
 
