@@ -65,7 +65,7 @@ Tables: auth_users, auth_identities, auth_sessions, auth_requests, auth_login_ti
 248 Works no longer depends on Azure Static Web Apps custom authentication.
 Consumer configuration: VITE_TRISEND_AUTH_URL.
 Application id: 248works.
-Production redirect URI: https://248-works.rajeevstech.in/
+Production redirect URI: https://248works.rajeevstech.in/
 Local development redirect URI is supported when explicitly registered.
 
 Never restore SWA /.auth/login/* authentication and never put OAuth provider secrets in 248 Works.
@@ -178,3 +178,5 @@ After every future code update: RE-READ THIS FILE -> update memory if state chan
 2026-10-07: 248 Works API diagnostics improved after production `GET /api/jobs` returned HTTP 500. The Azure Functions API now exposes a safe `GET /api/health` Cosmos connectivity check and returns a non-secret diagnostic type/status code with the jobs API failure response. Consumer commit: 27375dd3cc1a304f9840e74b1b04c4393626a94a. This is intended to distinguish missing Cosmos application settings/container connectivity from query-level failures; production Cosmos settings remain outside source control.
 
 2026-10-07: Corrected the /health/auth-config diagnostic's production redirect reference to the actual live 248 Works hostname https://248works.rajeevstech.in/ (without the hyphen), matching the production site observed in browser/network traffic. TriSend commit: af08a4c40178c64f396a7560201d68f066d64a50.
+
+2026-10-07: Fixed duplicate Azure Functions health registration in 248 Works; retained the Cosmos diagnostic /api/health endpoint. Consumer commit: 0cbf3e94edbb733d4fc42b441284785dfce1b59b. Azure Static Web Apps deployment verification is pending.
