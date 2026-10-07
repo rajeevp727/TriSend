@@ -2,6 +2,7 @@ using Npgsql;
 using TriSend.Api.Data;
 using TriSend.Api.Email;
 using TriSend.Api.Security;
+using TriSend.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,20 +18,18 @@ builder.Services.AddCors(options =>
     {
         if (allowedOrigins.Length == 0)
         {
-            policy.AllowAnyOrigin()
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
+            policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
             return;
         }
 
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
     });
 });
 
 builder.Services.AddSingleton<MessageRepository>();
 builder.Services.AddSingleton<BrandedEmailTemplate>();
+builder.Services.AddSingleton<AuthService>();
+builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<ResendEmailSender>(client =>
 {
     client.BaseAddress = new Uri("https://api.resend.com/");
@@ -39,7 +38,12 @@ builder.Services.AddHttpClient<ResendEmailSender>(client =>
 var app = builder.Build();
 
 app.UseCors("Frontend");
-app.UseMiddleware<MvpApiKeyMiddleware>();
+
+// Authentication endpoints use their own JWT validation.
+// The legacy tenant API-key middleware continues to protect /v1 messaging endpoints.
+app.UseWhen(
+    context => context.Request.Path.StartsWithSegments("/v1"),
+    branch => branch.UseMiddleware<MvpApiKeyMiddleware>());
 
 app.MapGet("/health", () => Results.Ok(new
 {
