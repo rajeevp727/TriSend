@@ -145,6 +145,9 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: 248 Works authentication UX now exposes Log in / Sign up in the top-right, supports email/credential auth plus Google/Microsoft via TriSend, lets new users choose Employee or Employer, and conditionally shows Find Jobs / Post a Job based on the authenticated role. Consumer commits: 79b27139653c9718ff68117176eec44f9dccf609, dd36965c282119dd8aa0e0d03695e472c0f2a70e, d7091373761c9b9a6dc3cc6a6168e668eb4b4c64, 0d417ab2ca4898d90a3efb6422dfac4bf65ed0cc.
 
+
+2026-10-07: Verified 248 Works frontend deployment for the role-aware authentication UX: Azure Static Web Apps Run #107, commit 0d417ab2ca4898d90a3efb6422dfac4bf65ed0cc, completed successfully. TriSend Backend CI Run #82 built TriSend.Api successfully, but the overall workflow remained failed because the separate TriSend.Worker restore step failed; authentication API deployment remains subject to the existing deployment verification gate.
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
