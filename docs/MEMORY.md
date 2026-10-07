@@ -136,6 +136,9 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: 248 Works routing was made URL-driven with dedicated `/emplyee/jobs`, `/employer/jobs/post`, `/applications`, `/privacy`, and `/grievance` routes, browser back/forward support, and a graceful in-app 404 fallback; consumer commit `a4ba52ed2859c59e7dc384e39b92ec79f359e74d`.
 
+2026-10-07: 248 Works MVP baseline expanded against current Naukri/Indeed/LinkedIn patterns: persistent job-seeker profiles, saved jobs, saved-search job alerts, application status tracking, employer job management, employer applicant pipeline statuses, admin summary metrics, protected-route handling, and corrected access-token logout were added across React, Azure Functions and Cosmos-backed APIs. Consumer changes culminated in commits `b20c6c7f9b0d1601d9eacd4d083cbbb310a483c8`, `a75edf531618ebe1fd85589572349197c9ef033a`, `e6a3b3edfd8a538eba5b65114afa366989807132`, `14be55882b6e01ada642286139ced32ec7af7747`, `9a126336aea956e5bcf8fc7ce88bcc3c58cf71cf`, `f5d6d0c19fe538d1599ca6590fc06940fb0351d3`, `4c46739dac1fad173c38d62420c5e1e103ada14c`, `69e31e432e27ef58d1f9579d22c4acfba8b82b69`.
+
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
