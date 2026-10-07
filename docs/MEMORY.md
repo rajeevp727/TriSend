@@ -134,6 +134,8 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: 248 Works popup keyboard behavior standardized: pressing Escape now closes open job-details and authentication popups, while clicking the backdrop/outside still does not dismiss them. Explicit × close buttons remain supported; consumer commits `b7f50e49fe227093ee08ea977caac45e0514c312` and `cfc481df380d6cdbd88b531982e33017d2317ab3`.
 
+2026-10-07: 248 Works routing was made URL-driven with dedicated `/emplyee/jobs`, `/employer/jobs/post`, `/applications`, `/privacy`, and `/grievance` routes, browser back/forward support, and a graceful in-app 404 fallback; consumer commit `a4ba52ed2859c59e7dc384e39b92ec79f359e74d`.
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
