@@ -52,6 +52,31 @@ app.MapMethods("/health", new[] { "GET", "HEAD" }, () => Results.Ok(new
     utc = DateTimeOffset.UtcNow
 }));
 
+app.MapGet("/health/auth-config", (IConfiguration configuration) =>
+{
+    var allowedRedirectUris = configuration
+        .GetSection("Auth:AllowedRedirectUris")
+        .Get<string[]>() ?? [];
+
+    const string productionRedirectUri = "https://248-works.rajeevstech.in/";
+
+    return Results.Ok(new
+    {
+        status = "ok",
+        productionRedirectUriRegistered = allowedRedirectUris.Contains(
+            productionRedirectUri,
+            StringComparer.Ordinal),
+        registeredRedirectUriCount = allowedRedirectUris.Length,
+        registeredRedirectUris = allowedRedirectUris,
+        publicBaseUrl = configuration["Auth:PublicBaseUrl"],
+        googleClientIdConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Google:ClientId"]),
+        microsoftClientIdConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Microsoft:ClientId"]),
+        jwtIssuerConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Jwt:Issuer"]),
+        jwtAudienceConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Jwt:Audience"]),
+        jwtSigningKeyConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Jwt:SigningKey"])
+    });
+});
+
 app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     var connectionString = configuration.GetConnectionString("Postgres");
