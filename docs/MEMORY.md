@@ -154,6 +154,9 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: 248 Works header was simplified to remove duplicate Find Jobs and Post a Job actions. Primary job-entry actions remain in the page body/hero; the top-right header is reserved for account and authenticated workspace navigation. Consumer commit: 83ac41e1cc29d594de3e7560702655bd55e1f5b4. Azure Static Web Apps Run #110 is queued for this change.
 
+
+2026-10-07: 248 Works auth entry UX finalized per user request: top-right unauthenticated header now shows a single Join Us button; Join Us opens the auth modal, which contains the two-mode Log in / Sign up tabs. The duplicate bottom contextual auth switch is removed. Consumer commits: 34ce105626a40ec0a460c0b36321b02054761278 and 7fa11483c32b31368816f33b7f96f9bbcd45a6ca. Azure Static Web Apps Run #112 is in progress for the final commit.
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
