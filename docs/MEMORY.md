@@ -128,6 +128,8 @@ Never commit OAuth secrets, JWT signing keys, database passwords, refresh tokens
 
 2026-10-07: Fixed 248 Works employer `Publish Job` form navigation by preventing native form submission before authentication/business logic; unauthenticated submits now keep the SPA route instead of navigating to `/`. Consumer commit `0d5dc9b6a9b9000f51bcb89752a49df0bd4c9a1c`.
 
+2026-10-07: 248 Works popup behavior standardized: modal dialogs now close only through their explicit close (×) controls; clicking the backdrop/outside a popup no longer dismisses it. Applied to job details and authentication dialogs; consumer commits `61adceb0646980bac2ad7d745ac945fa31063c44` and `fc29912c7e82799b115ddd0b746986f35fad073d`.
+
 ## Mandatory workflow
 
 Before every future code update: READ THIS FILE -> inspect code -> make change -> validate.
