@@ -45,7 +45,7 @@ app.UseWhen(
     context => context.Request.Path.StartsWithSegments("/v1"),
     branch => branch.UseMiddleware<MvpApiKeyMiddleware>());
 
-app.MapGet("/health", () => Results.Ok(new
+app.MapMethods("/health", new[] { "GET", "HEAD" }, () => Results.Ok(new
 {
     status = "healthy",
     service = "trisend-api",
