@@ -65,10 +65,21 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
 
     try
     {
-        await using var connection = new NpgsqlConnection(connectionString);
+        // Keep the diagnostic DB probe bounded so a network/pooler problem
+        // cannot consume Render's entire deployment health-check window.
+        var connectionBuilder = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            Timeout = 3,
+            CommandTimeout = 3
+        };
+
+        await using var connection = new NpgsqlConnection(connectionBuilder.ConnectionString);
         await connection.OpenAsync(cancellationToken);
 
-        await using var command = new NpgsqlCommand("select 1", connection);
+        await using var command = new NpgsqlCommand("select 1", connection)
+        {
+            CommandTimeout = 3
+        };
         await command.ExecuteScalarAsync(cancellationToken);
 
         return Results.Ok(new
