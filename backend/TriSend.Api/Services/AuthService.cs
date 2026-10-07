@@ -103,6 +103,7 @@ public sealed class AuthService
         var accessToken = await ExchangeProviderCodeAsync(provider, code, oauthRedirectUri, verifier, ct);
         var profile = await GetProfileAsync(provider, accessToken, ct);
         var userId = await UpsertUserAsync(db, profile, provider, ct);
+        var effectiveRole = await GetOrCreateAppRoleAsync(db, userId, appId, role, ct);
 
         await using var deleteRequest = new NpgsqlCommand("delete from auth_requests where state=@state", db);
         deleteRequest.Parameters.AddWithValue("state", state);
@@ -116,7 +117,7 @@ public sealed class AuthService
         ticket.Parameters.AddWithValue("code", loginCode);
         ticket.Parameters.AddWithValue("user", userId);
         ticket.Parameters.AddWithValue("app", appId);
-        ticket.Parameters.AddWithValue("role", role);
+        ticket.Parameters.AddWithValue("role", effectiveRole);
         ticket.Parameters.AddWithValue("expires", DateTimeOffset.UtcNow.AddMinutes(2));
         await ticket.ExecuteNonQueryAsync(ct);
 
@@ -183,6 +184,121 @@ public sealed class AuthService
         await insert.ExecuteNonQueryAsync(ct);
 
         return await CreateTokenResponseAsync(db, userId, appId, role, sessionId, refreshToken, ct);
+    }
+
+    public async Task<AuthTokenResponse> RegisterWithPasswordAsync(
+        string email,
+        string password,
+        string? displayName,
+        string appId,
+        string role,
+        bool replaceOldest,
+        string? userAgent,
+        string? ipAddress,
+        CancellationToken ct)
+    {
+        ValidateAppRole(role);
+        if (string.IsNullOrWhiteSpace(appId))
+            throw new AuthException("invalid_app", "Application id is required.", 400);
+
+        var normalizedEmail = NormalizeEmail(email);
+        ValidatePassword(password);
+
+        await using var db = CreateConnection();
+        await db.OpenAsync(ct);
+        await using var transaction = await db.BeginTransactionAsync(ct);
+
+        await using var existing = new NpgsqlCommand("select id from auth_users where email=@email", db, transaction);
+        existing.Parameters.AddWithValue("email", normalizedEmail);
+        var existingId = await existing.ExecuteScalarAsync(ct);
+        if (existingId is not null)
+            throw new AuthException("email_exists", "An account already exists for this email address. Sign in instead.", 409);
+
+        var userId = Guid.NewGuid();
+        await using var user = new NpgsqlCommand("""
+            insert into auth_users(id,email,display_name)
+            values(@id,@email,@name)
+            """, db, transaction);
+        user.Parameters.AddWithValue("id", userId);
+        user.Parameters.AddWithValue("email", normalizedEmail);
+        user.Parameters.AddWithValue("name", (object?)displayName?.Trim() ?? DBNull.Value);
+        await user.ExecuteNonQueryAsync(ct);
+
+        const int iterations = 120000;
+        var salt = RandomNumberGenerator.GetBytes(16);
+        var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, HashAlgorithmName.SHA256, 32);
+
+        await using var credentials = new NpgsqlCommand("""
+            insert into auth_password_credentials(user_id,password_hash,password_salt,iterations)
+            values(@user,@hash,@salt,@iterations)
+            """, db, transaction);
+        credentials.Parameters.AddWithValue("user", userId);
+        credentials.Parameters.AddWithValue("hash", Convert.ToBase64String(hash));
+        credentials.Parameters.AddWithValue("salt", Convert.ToBase64String(salt));
+        credentials.Parameters.AddWithValue("iterations", iterations);
+        await credentials.ExecuteNonQueryAsync(ct);
+
+        await using var appRole = new NpgsqlCommand("""
+            insert into auth_user_roles(user_id,app_id,role)
+            values(@user,@app,@role)
+            """, db, transaction);
+        appRole.Parameters.AddWithValue("user", userId);
+        appRole.Parameters.AddWithValue("app", appId);
+        appRole.Parameters.AddWithValue("role", role);
+        await appRole.ExecuteNonQueryAsync(ct);
+
+        await transaction.CommitAsync(ct);
+        return await CreateSessionAsync(db, userId, appId, role, replaceOldest, userAgent, ipAddress, ct);
+    }
+
+    public async Task<AuthTokenResponse> LoginWithPasswordAsync(
+        string email,
+        string password,
+        string appId,
+        bool replaceOldest,
+        string? userAgent,
+        string? ipAddress,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(appId))
+            throw new AuthException("invalid_app", "Application id is required.", 400);
+
+        var normalizedEmail = NormalizeEmail(email);
+        if (string.IsNullOrWhiteSpace(password))
+            throw new AuthException("invalid_credentials", "Email or password is incorrect.", 401);
+
+        await using var db = CreateConnection();
+        await db.OpenAsync(ct);
+
+        await using var command = new NpgsqlCommand("""
+            select u.id, pc.password_hash, pc.password_salt, pc.iterations, r.role
+            from auth_users u
+            left join auth_password_credentials pc on pc.user_id=u.id
+            left join auth_user_roles r on r.user_id=u.id and r.app_id=@app
+            where u.email=@email
+            """, db);
+        command.Parameters.AddWithValue("email", normalizedEmail);
+        command.Parameters.AddWithValue("app", appId);
+
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct) ||
+            reader.IsDBNull(1) ||
+            reader.IsDBNull(2) ||
+            reader.IsDBNull(4))
+            throw new AuthException("invalid_credentials", "Email or password is incorrect.", 401);
+
+        var userId = reader.GetGuid(0);
+        var storedHash = Convert.FromBase64String(reader.GetString(1));
+        var salt = Convert.FromBase64String(reader.GetString(2));
+        var iterations = reader.GetInt32(3);
+        var role = reader.GetString(4);
+        await reader.CloseAsync();
+
+        var computed = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, HashAlgorithmName.SHA256, storedHash.Length);
+        if (!CryptographicOperations.FixedTimeEquals(computed, storedHash))
+            throw new AuthException("invalid_credentials", "Email or password is incorrect.", 401);
+
+        return await CreateSessionAsync(db, userId, appId, role, replaceOldest, userAgent, ipAddress, ct);
     }
 
     public async Task<AuthTokenResponse> RefreshAsync(string refreshToken, CancellationToken ct)
@@ -273,6 +389,102 @@ public sealed class AuthService
         command.Parameters.AddWithValue("id", sessionId);
         command.Parameters.AddWithValue("user", userId);
         await command.ExecuteNonQueryAsync(ct);
+    }
+
+    private async Task<AuthTokenResponse> CreateSessionAsync(
+        NpgsqlConnection db,
+        Guid userId,
+        string appId,
+        string role,
+        bool replaceOldest,
+        string? userAgent,
+        string? ipAddress,
+        CancellationToken ct)
+    {
+        var activeCount = await ActiveSessionCountAsync(db, userId, ct);
+        if (activeCount >= 3)
+        {
+            if (!replaceOldest)
+                throw new AuthException("MAX_SESSIONS", "You already have 3 active sessions. Confirm replacement of the oldest session to continue.", 409, true);
+
+            await using var revoke = new NpgsqlCommand("""
+                update auth_sessions set revoked_at_utc=now()
+                where id = (
+                    select id from auth_sessions
+                    where user_id=@user and revoked_at_utc is null and expires_at_utc > now()
+                    order by last_used_at_utc asc limit 1
+                )
+                """, db);
+            revoke.Parameters.AddWithValue("user", userId);
+            await revoke.ExecuteNonQueryAsync(ct);
+        }
+
+        var refreshToken = RandomToken(64);
+        var sessionId = Guid.NewGuid();
+
+        await using var insert = new NpgsqlCommand("""
+            insert into auth_sessions(id,user_id,app_id,role,refresh_token_hash,expires_at_utc,user_agent,ip_address)
+            values(@id,@user,@app,@role,@hash,@expires,@ua,@ip)
+            """, db);
+        insert.Parameters.AddWithValue("id", sessionId);
+        insert.Parameters.AddWithValue("user", userId);
+        insert.Parameters.AddWithValue("app", appId);
+        insert.Parameters.AddWithValue("role", role);
+        insert.Parameters.AddWithValue("hash", Hash(refreshToken));
+        insert.Parameters.AddWithValue("expires", DateTimeOffset.UtcNow.AddDays(30));
+        insert.Parameters.AddWithValue("ua", (object?)userAgent ?? DBNull.Value);
+        insert.Parameters.AddWithValue("ip", (object?)ipAddress ?? DBNull.Value);
+        await insert.ExecuteNonQueryAsync(ct);
+
+        return await CreateTokenResponseAsync(db, userId, appId, role, sessionId, refreshToken, ct);
+    }
+
+    private async Task<string> GetOrCreateAppRoleAsync(
+        NpgsqlConnection db,
+        Guid userId,
+        string appId,
+        string requestedRole,
+        CancellationToken ct)
+    {
+        ValidateAppRole(requestedRole);
+
+        await using var existing = new NpgsqlCommand("""
+            select role from auth_user_roles where user_id=@user and app_id=@app
+            """, db);
+        existing.Parameters.AddWithValue("user", userId);
+        existing.Parameters.AddWithValue("app", appId);
+        var role = await existing.ExecuteScalarAsync(ct);
+        if (role is string storedRole)
+            return storedRole;
+
+        await using var insert = new NpgsqlCommand("""
+            insert into auth_user_roles(user_id,app_id,role)
+            values(@user,@app,@role)
+            on conflict(user_id,app_id) do nothing
+            """, db);
+        insert.Parameters.AddWithValue("user", userId);
+        insert.Parameters.AddWithValue("app", appId);
+        insert.Parameters.AddWithValue("role", requestedRole);
+        await insert.ExecuteNonQueryAsync(ct);
+        return requestedRole;
+    }
+
+    private static void ValidateAppRole(string role)
+    {
+        if (role is not ("JobSeeker" or "Employer"))
+            throw new AuthException("invalid_role", "Choose Employee or Employer.", 400);
+    }
+
+    private static string NormalizeEmail(string email) =>
+        (email ?? string.Empty).Trim().ToLowerInvariant();
+
+    private static void ValidatePassword(string password)
+    {
+        if (string.IsNullOrWhiteSpace(password) ||
+            password.Length < 8 ||
+            !password.Any(char.IsLetter) ||
+            !password.Any(char.IsDigit))
+            throw new AuthException("weak_password", "Password must be at least 8 characters and contain at least one letter and one number.", 400);
     }
 
     private async Task<int> ActiveSessionCountAsync(NpgsqlConnection db, Guid userId, CancellationToken ct)
