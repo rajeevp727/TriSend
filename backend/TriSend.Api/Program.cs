@@ -58,7 +58,7 @@ app.MapGet("/health/auth-config", (IConfiguration configuration) =>
         .GetSection("Auth:AllowedRedirectUris")
         .Get<string[]>() ?? [];
 
-    const string productionRedirectUri = "https://248-works.rajeevstech.in/";
+    const string productionRedirectUri = "https://248works.rajeevstech.in/";
 
     return Results.Ok(new
     {
