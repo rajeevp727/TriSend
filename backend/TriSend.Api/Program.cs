@@ -59,7 +59,12 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
     if (string.IsNullOrWhiteSpace(connectionString))
     {
         return Results.Json(
-            new { status = "unhealthy", database = "not_configured" },
+            new
+            {
+                status = "unhealthy",
+                database = "not_configured",
+                reason = "ConnectionStrings__Postgres is missing or empty."
+            },
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
@@ -95,8 +100,20 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
             ex,
             "PostgreSQL health check failed. Database connection could not be established.");
 
+        var errorType = ex.GetType().Name;
+        var sqlState = ex is PostgresException postgresException
+            ? postgresException.SqlState
+            : null;
+
         return Results.Json(
-            new { status = "unhealthy", database = "postgres" },
+            new
+            {
+                status = "unhealthy",
+                database = "postgres",
+                reason = "connection_failed",
+                errorType,
+                sqlState
+            },
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 });
