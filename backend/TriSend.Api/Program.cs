@@ -78,8 +78,12 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
             utc = DateTimeOffset.UtcNow
         });
     }
-    catch
+    catch (Exception ex)
     {
+        app.Logger.LogError(
+            ex,
+            "PostgreSQL health check failed. Database connection could not be established.");
+
         return Results.Json(
             new { status = "unhealthy", database = "postgres" },
             statusCode: StatusCodes.Status503ServiceUnavailable);
