@@ -471,8 +471,11 @@ public sealed class AuthService
 
     private static void ValidateAppRole(string role)
     {
-        if (role is not ("JobSeeker" or "Employer"))
-            throw new AuthException("invalid_role", "Choose Employee or Employer.", 400);
+        if (role is not ("JobSeeker" or "Employer" or "Driver" or "Rider"))
+            throw new AuthException(
+                "invalid_role",
+                "Supported roles are JobSeeker, Employer, Driver, and Rider.",
+                400);
     }
 
     private static string NormalizeEmail(string email) =>

@@ -31,8 +31,6 @@ jobs:
       - run: dotnet restore backend/TriSend.Api/TriSend.Api.csproj
       - run: dotnet build backend/TriSend.Api/TriSend.Api.csproj --configuration Release --no-restore
 
-      - run: dotnet restore workers/TriSend.Worker/TriSend.Worker.csproj
-      - run: dotnet build workers/TriSend.Worker/TriSend.Worker.csproj --configuration Release --no-restore
 
       - run: dotnet restore sdk/dotnet/TriSend.Client/TriSend.Client.csproj
       - run: dotnet build sdk/dotnet/TriSend.Client/TriSend.Client.csproj --configuration Release --no-restore
