@@ -39,8 +39,6 @@ var app = builder.Build();
 
 app.UseCors("Frontend");
 
-// Authentication endpoints use their own JWT validation.
-// The legacy tenant API-key middleware continues to protect /v1 messaging endpoints.
 app.UseWhen(
     context => context.Request.Path.StartsWithSegments("/v1"),
     branch => branch.UseMiddleware<MvpApiKeyMiddleware>());
@@ -79,28 +77,25 @@ app.MapGet("/health/auth-config", (IConfiguration configuration) =>
 
 app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration configuration, CancellationToken cancellationToken) =>
 {
-    var connectionString = configuration.GetConnectionString("Postgres");
-
-    if (string.IsNullOrWhiteSpace(connectionString))
-    {
-        return Results.Json(
-            new
-            {
-                status = "unhealthy",
-                database = "not_configured",
-                reason = "ConnectionStrings__Postgres is missing or empty."
-            },
-            statusCode: StatusCodes.Status503ServiceUnavailable);
-    }
-
     try
     {
-        // Keep the diagnostic DB probe bounded so a network/pooler problem
-        // cannot consume Render's entire deployment health-check window.
+        var connectionString = PostgresConnectionFactory.GetConnectionString(configuration);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return Results.Json(
+                new
+                {
+                    status = "unhealthy",
+                    database = "not_configured",
+                    reason = "Configure Postgres__Host, Postgres__Database, Postgres__Username, and Postgres__Password."
+                },
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
         var connectionBuilder = new NpgsqlConnectionStringBuilder(connectionString)
         {
-            Timeout = 3,
-            CommandTimeout = 3
+            Timeout = 5,
+            CommandTimeout = 5
         };
 
         await using var connection = new NpgsqlConnection(connectionBuilder.ConnectionString);
@@ -108,7 +103,7 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
 
         await using var command = new NpgsqlCommand("select 1", connection)
         {
-            CommandTimeout = 3
+            CommandTimeout = 5
         };
         await command.ExecuteScalarAsync(cancellationToken);
 
@@ -121,17 +116,12 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
     }
     catch (Exception ex)
     {
-        app.Logger.LogError(
-            ex,
-            "PostgreSQL health check failed. Database connection could not be established.");
+        app.Logger.LogError(ex, "PostgreSQL health check failed.");
 
         var errorType = ex.GetType().Name;
         var sqlState = ex is PostgresException postgresException
             ? postgresException.SqlState
             : null;
-        var inner = ex.InnerException;
-        var safeMessage = RedactDatabaseSecrets(
-            inner?.Message ?? ex.Message);
 
         return Results.Json(
             new
@@ -141,30 +131,11 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
                 reason = "connection_failed",
                 errorType,
                 sqlState,
-                errorMessage = safeMessage
+                errorMessage = "Database connection failed. Check the Render Postgres__* environment variables and Supabase network/password settings."
             },
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 });
 
 app.MapControllers();
-
 app.Run();
-
-
-static string RedactDatabaseSecrets(string message)
-{
-    if (string.IsNullOrWhiteSpace(message))
-    {
-        return "No provider error message was returned.";
-    }
-
-    var redacted = System.Text.RegularExpressions.Regex.Replace(
-        message,
-        @"(?i)(password|pwd)\s*=\s*[^;\s]+",
-        "$1=[REDACTED]");
-
-    return redacted.Length <= 500
-        ? redacted
-        : redacted[..500];
-}

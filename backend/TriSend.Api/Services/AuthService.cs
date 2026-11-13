@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
+using TriSend.Api.Data;
 
 namespace TriSend.Api.Services;
 
@@ -21,8 +22,8 @@ public sealed class AuthService
     }
 
     private NpgsqlConnection CreateConnection() =>
-        new(_configuration.GetConnectionString("Postgres")
-            ?? throw new InvalidOperationException("Postgres connection string is not configured."));
+        new(PostgresConnectionFactory.GetConnectionString(_configuration)
+            ?? throw new InvalidOperationException("Postgres database configuration is required."));
 
     public async Task<string> CreateLoginUrlAsync(string provider, string appId, string role, string redirectUri, CancellationToken ct)
     {

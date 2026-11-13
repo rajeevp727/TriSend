@@ -18,8 +18,8 @@ public sealed record MessageRecord(
 public sealed class MessageRepository(IConfiguration configuration)
 {
     private readonly string _connectionString =
-        configuration.GetConnectionString("Postgres")
-        ?? throw new InvalidOperationException("ConnectionStrings:Postgres is required.");
+        PostgresConnectionFactory.GetConnectionString(configuration)
+        ?? throw new InvalidOperationException("Postgres database configuration is required.");
 
     public async Task InsertAsync(MessageRecord message, CancellationToken cancellationToken)
     {
@@ -73,7 +73,6 @@ public sealed class MessageRepository(IConfiguration configuration)
             "provider_message_id",
             (object?)providerMessageId ?? DBNull.Value);
         command.Parameters.AddWithValue("error", (object?)error ?? DBNull.Value);
-
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
