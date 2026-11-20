@@ -5,7 +5,8 @@ namespace TriSend.Api.Security;
 
 public sealed class MvpApiKeyMiddleware(RequestDelegate next, IConfiguration configuration)
 {
-    private readonly byte[] _configuredApiKey = Encoding.UTF8.GetBytes(configuration["Mvp:ApiKey"] ?? string.Empty);
+    private readonly byte[] _configuredApiKey =
+        Encoding.UTF8.GetBytes(configuration["Mvp:ApiKey"] ?? string.Empty);
 
     public async Task InvokeAsync(HttpContext context)
     {
@@ -26,15 +27,23 @@ public sealed class MvpApiKeyMiddleware(RequestDelegate next, IConfiguration con
             return;
         }
 
-        var authorization = context.Request.Headers.Authorization;
-        if (authorization.Count != 1 ||
-            !authorization[0].StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        var authorization = context.Request.Headers.Authorization.ToString();
+        const string bearerPrefix = "Bearer ";
+
+        if (!authorization.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
         {
             await WriteUnauthorizedAsync(context);
             return;
         }
 
-        var suppliedKey = Encoding.UTF8.GetBytes(authorization[0]["Bearer ".Length..].Trim());
+        var suppliedValue = authorization[bearerPrefix.Length..].Trim();
+        if (suppliedValue.Length == 0)
+        {
+            await WriteUnauthorizedAsync(context);
+            return;
+        }
+
+        var suppliedKey = Encoding.UTF8.GetBytes(suppliedValue);
         if (suppliedKey.Length != _configuredApiKey.Length ||
             !CryptographicOperations.FixedTimeEquals(suppliedKey, _configuredApiKey))
         {
