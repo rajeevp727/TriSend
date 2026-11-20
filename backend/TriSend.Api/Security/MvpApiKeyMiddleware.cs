@@ -1,8 +1,11 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace TriSend.Api.Security;
 
 public sealed class MvpApiKeyMiddleware(RequestDelegate next, IConfiguration configuration)
 {
-    private readonly string _apiKey = configuration["Mvp:ApiKey"] ?? string.Empty;
+    private readonly byte[] _configuredApiKey = Encoding.UTF8.GetBytes(configuration["Mvp:ApiKey"] ?? string.Empty);
 
     public async Task InvokeAsync(HttpContext context)
     {
@@ -12,7 +15,7 @@ public sealed class MvpApiKeyMiddleware(RequestDelegate next, IConfiguration con
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(_apiKey))
+        if (_configuredApiKey.Length == 0)
         {
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             await context.Response.WriteAsJsonAsync(new
@@ -23,20 +26,32 @@ public sealed class MvpApiKeyMiddleware(RequestDelegate next, IConfiguration con
             return;
         }
 
-        if (!context.Request.Headers.TryGetValue("Authorization", out var authorization) ||
-            authorization.Count != 1 ||
-            !authorization[0].StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(authorization[0]["Bearer ".Length..], _apiKey, StringComparison.Ordinal))
+        var authorization = context.Request.Headers.Authorization;
+        if (authorization.Count != 1 ||
+            !authorization[0].StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsJsonAsync(new
-            {
-                code = "unauthorized",
-                message = "A valid tenant API key is required."
-            });
+            await WriteUnauthorizedAsync(context);
+            return;
+        }
+
+        var suppliedKey = Encoding.UTF8.GetBytes(authorization[0]["Bearer ".Length..].Trim());
+        if (suppliedKey.Length != _configuredApiKey.Length ||
+            !CryptographicOperations.FixedTimeEquals(suppliedKey, _configuredApiKey))
+        {
+            await WriteUnauthorizedAsync(context);
             return;
         }
 
         await next(context);
+    }
+
+    private static async Task WriteUnauthorizedAsync(HttpContext context)
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            code = "unauthorized",
+            message = "A valid tenant API key is required."
+        });
     }
 }
