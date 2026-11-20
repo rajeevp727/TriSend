@@ -7,8 +7,7 @@ using TriSend.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Keep non-secret vault location in appsettings; credentials come from the
-// developer's Azure CLI session locally or Managed Identity when hosted.
+// Use Azure CLI credentials locally and Managed Identity when hosted.
 var keyVaultUriValue = builder.Configuration["KeyVault:VaultUri"];
 if (!string.IsNullOrWhiteSpace(keyVaultUriValue))
 {
@@ -21,8 +20,7 @@ if (!string.IsNullOrWhiteSpace(keyVaultUriValue))
     builder.Configuration.AddAzureKeyVault(keyVaultUri, new DefaultAzureCredential());
 }
 
-// Key Vault replaces "--" with ":" in configuration keys. Preserve the
-// existing Microsoft--* and PublicBaseUrl names without duplicating secrets.
+// Key Vault converts "--" to ":"; map the existing names to the Auth section.
 CopyKeyVaultAlias(builder.Configuration, "Microsoft:ClientId", "Auth:Microsoft:ClientId");
 CopyKeyVaultAlias(builder.Configuration, "Microsoft:ClientSecret", "Auth:Microsoft:ClientSecret");
 CopyKeyVaultAlias(builder.Configuration, "PublicBaseUrl", "Auth:PublicBaseUrl");
@@ -48,9 +46,10 @@ builder.Services.AddSingleton<MessageRepository>();
 builder.Services.AddSingleton<BrandedEmailTemplate>();
 builder.Services.AddSingleton<AuthService>();
 
-// Bound outbound calls so a slow OAuth/email provider cannot hold requests
-// indefinitely. Resend gets its own typed client and the same bounded timeout.
-builder.Services.AddHttpClient(client => client.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddHttpClient("Default", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(20);
+});
 builder.Services.AddHttpClient<ResendEmailSender>(client =>
 {
     client.BaseAddress = new Uri("https://api.resend.com/");
