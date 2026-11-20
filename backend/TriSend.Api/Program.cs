@@ -7,28 +7,29 @@ using TriSend.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load secrets from Azure Key Vault when a vault URI is configured.
-// Locally, DefaultAzureCredential uses the developer's Azure CLI sign-in.
-var keyVaultUri = builder.Configuration["KeyVault:VaultUri"];
-if (!string.IsNullOrWhiteSpace(keyVaultUri))
+// Keep non-secret vault location in appsettings; credentials come from the
+// developer's Azure CLI session locally or Managed Identity when hosted.
+var keyVaultUriValue = builder.Configuration["KeyVault:VaultUri"];
+if (!string.IsNullOrWhiteSpace(keyVaultUriValue))
 {
-    builder.Configuration.AddAzureKeyVault(
-        new Uri(keyVaultUri),
-        new DefaultAzureCredential());
+    if (!Uri.TryCreate(keyVaultUriValue, UriKind.Absolute, out var keyVaultUri) ||
+        keyVaultUri.Scheme != Uri.UriSchemeHttps)
+    {
+        throw new InvalidOperationException("KeyVault:VaultUri must be a valid HTTPS URI.");
+    }
+
+    builder.Configuration.AddAzureKeyVault(keyVaultUri, new DefaultAzureCredential());
 }
 
-// Keep compatibility with the Key Vault secret names already created.
-// Key Vault converts "--" to ":", so Microsoft--ClientId becomes Microsoft:ClientId.
+// Key Vault replaces "--" with ":" in configuration keys. Preserve the
+// existing Microsoft--* and PublicBaseUrl names without duplicating secrets.
 CopyKeyVaultAlias(builder.Configuration, "Microsoft:ClientId", "Auth:Microsoft:ClientId");
 CopyKeyVaultAlias(builder.Configuration, "Microsoft:ClientSecret", "Auth:Microsoft:ClientSecret");
 CopyKeyVaultAlias(builder.Configuration, "PublicBaseUrl", "Auth:PublicBaseUrl");
 
 builder.Services.AddControllers();
 
-var allowedOrigins = builder.Configuration
-    .GetSection("Cors:AllowedOrigins")
-    .Get<string[]>() ?? [];
-
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
@@ -46,16 +47,19 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<MessageRepository>();
 builder.Services.AddSingleton<BrandedEmailTemplate>();
 builder.Services.AddSingleton<AuthService>();
-builder.Services.AddHttpClient();
+
+// Bound outbound calls so a slow OAuth/email provider cannot hold requests
+// indefinitely. Resend gets its own typed client and the same bounded timeout.
+builder.Services.AddHttpClient(client => client.Timeout = TimeSpan.FromSeconds(20));
 builder.Services.AddHttpClient<ResendEmailSender>(client =>
 {
     client.BaseAddress = new Uri("https://api.resend.com/");
+    client.Timeout = TimeSpan.FromSeconds(20);
 });
 
 var app = builder.Build();
 
 app.UseCors("Frontend");
-
 app.UseWhen(
     context => context.Request.Path.StartsWithSegments("/v1"),
     branch => branch.UseMiddleware<MvpApiKeyMiddleware>());
@@ -69,26 +73,24 @@ app.MapMethods("/health", new[] { "GET", "HEAD" }, () => Results.Ok(new
 
 app.MapGet("/health/auth-config", (IConfiguration configuration) =>
 {
-    var allowedRedirectUris = configuration
-        .GetSection("Auth:AllowedRedirectUris")
-        .Get<string[]>() ?? [];
-
+    var allowedRedirectUris = configuration.GetSection("Auth:AllowedRedirectUris").Get<string[]>() ?? [];
     const string productionRedirectUri = "https://248works.rajeevstech.in/";
 
     return Results.Ok(new
     {
         status = "ok",
-        productionRedirectUriRegistered = allowedRedirectUris.Contains(
-            productionRedirectUri,
-            StringComparer.Ordinal),
+        productionRedirectUriRegistered = allowedRedirectUris.Contains(productionRedirectUri, StringComparer.Ordinal),
         registeredRedirectUriCount = allowedRedirectUris.Length,
-        registeredRedirectUris = allowedRedirectUris,
-        publicBaseUrl = configuration["Auth:PublicBaseUrl"],
+        publicBaseUrlConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:PublicBaseUrl"]),
         googleClientIdConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Google:ClientId"]),
+        googleClientSecretConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Google:ClientSecret"]),
         microsoftClientIdConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Microsoft:ClientId"]),
+        microsoftClientSecretConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Microsoft:ClientSecret"]),
         jwtIssuerConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Jwt:Issuer"]),
         jwtAudienceConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Jwt:Audience"]),
-        jwtSigningKeyConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Jwt:SigningKey"])
+        jwtSigningKeyConfigured = !string.IsNullOrWhiteSpace(configuration["Auth:Jwt:SigningKey"]),
+        resendApiKeyConfigured = !string.IsNullOrWhiteSpace(configuration["Resend:ApiKey"]),
+        mvpApiKeyConfigured = !string.IsNullOrWhiteSpace(configuration["Mvp:ApiKey"])
     });
 });
 
@@ -99,14 +101,12 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
         var connectionString = PostgresConnectionFactory.GetConnectionString(configuration);
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            return Results.Json(
-                new
-                {
-                    status = "unhealthy",
-                    database = "not_configured",
-                    reason = "Configure ConnectionStrings:Postgres in Azure Key Vault or Postgres settings."
-                },
-                statusCode: StatusCodes.Status503ServiceUnavailable);
+            return Results.Json(new
+            {
+                status = "unhealthy",
+                database = "not_configured",
+                reason = "Configure ConnectionStrings:Postgres in Azure Key Vault."
+            }, statusCode: StatusCodes.Status503ServiceUnavailable);
         }
 
         var connectionBuilder = new NpgsqlConnectionStringBuilder(connectionString)
@@ -117,40 +117,23 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
 
         await using var connection = new NpgsqlConnection(connectionBuilder.ConnectionString);
         await connection.OpenAsync(cancellationToken);
-
-        await using var command = new NpgsqlCommand("select 1", connection)
-        {
-            CommandTimeout = 5
-        };
+        await using var command = new NpgsqlCommand("select 1", connection) { CommandTimeout = 5 };
         await command.ExecuteScalarAsync(cancellationToken);
 
-        return Results.Ok(new
-        {
-            status = "healthy",
-            database = "postgres",
-            utc = DateTimeOffset.UtcNow
-        });
+        return Results.Ok(new { status = "healthy", database = "postgres", utc = DateTimeOffset.UtcNow });
     }
     catch (Exception ex)
     {
         app.Logger.LogError(ex, "PostgreSQL health check failed.");
-
-        var errorType = ex.GetType().Name;
-        var sqlState = ex is PostgresException postgresException
-            ? postgresException.SqlState
-            : null;
-
-        return Results.Json(
-            new
-            {
-                status = "unhealthy",
-                database = "postgres",
-                reason = "connection_failed",
-                errorType,
-                sqlState,
-                errorMessage = "Database connection failed. Check the ConnectionStrings:Postgres Key Vault secret and Supabase network/password settings."
-            },
-            statusCode: StatusCodes.Status503ServiceUnavailable);
+        return Results.Json(new
+        {
+            status = "unhealthy",
+            database = "postgres",
+            reason = "connection_failed",
+            errorType = ex.GetType().Name,
+            sqlState = (ex as PostgresException)?.SqlState,
+            errorMessage = "Database connection failed. Check the ConnectionStrings:Postgres secret and Supabase network/password settings."
+        }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 });
 
