@@ -1,3 +1,4 @@
+using Azure.Identity;
 using Npgsql;
 using TriSend.Api.Data;
 using TriSend.Api.Email;
@@ -5,6 +6,22 @@ using TriSend.Api.Security;
 using TriSend.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Load secrets from Azure Key Vault when a vault URI is configured.
+// Locally, DefaultAzureCredential uses the developer's Azure CLI sign-in.
+var keyVaultUri = builder.Configuration["KeyVault:VaultUri"];
+if (!string.IsNullOrWhiteSpace(keyVaultUri))
+{
+    builder.Configuration.AddAzureKeyVault(
+        new Uri(keyVaultUri),
+        new DefaultAzureCredential());
+}
+
+// Keep compatibility with the Key Vault secret names already created.
+// Key Vault converts "--" to ":", so Microsoft--ClientId becomes Microsoft:ClientId.
+CopyKeyVaultAlias(builder.Configuration, "Microsoft:ClientId", "Auth:Microsoft:ClientId");
+CopyKeyVaultAlias(builder.Configuration, "Microsoft:ClientSecret", "Auth:Microsoft:ClientSecret");
+CopyKeyVaultAlias(builder.Configuration, "PublicBaseUrl", "Auth:PublicBaseUrl");
 
 builder.Services.AddControllers();
 
@@ -87,7 +104,7 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
                 {
                     status = "unhealthy",
                     database = "not_configured",
-                    reason = "Configure Postgres__Host, Postgres__Database, Postgres__Username, and Postgres__Password."
+                    reason = "Configure ConnectionStrings:Postgres in Azure Key Vault or Postgres settings."
                 },
                 statusCode: StatusCodes.Status503ServiceUnavailable);
         }
@@ -131,7 +148,7 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
                 reason = "connection_failed",
                 errorType,
                 sqlState,
-                errorMessage = "Database connection failed. Check the Render Postgres__* environment variables and Supabase network/password settings."
+                errorMessage = "Database connection failed. Check the ConnectionStrings:Postgres Key Vault secret and Supabase network/password settings."
             },
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
@@ -139,3 +156,12 @@ app.MapMethods("/health/db", new[] { "GET", "HEAD" }, async (IConfiguration conf
 
 app.MapControllers();
 app.Run();
+
+static void CopyKeyVaultAlias(IConfigurationManager configuration, string sourceKey, string targetKey)
+{
+    if (string.IsNullOrWhiteSpace(configuration[targetKey]) &&
+        !string.IsNullOrWhiteSpace(configuration[sourceKey]))
+    {
+        configuration[targetKey] = configuration[sourceKey];
+    }
+}
