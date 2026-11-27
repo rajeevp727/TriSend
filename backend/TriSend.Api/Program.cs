@@ -28,16 +28,17 @@ CopyKeyVaultAlias(builder.Configuration, "PublicBaseUrl", "Auth:PublicBaseUrl");
 builder.Services.AddControllers();
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+if (builder.Environment.IsProduction() && allowedOrigins.Length == 0)
+{
+    throw new InvalidOperationException("Cors:AllowedOrigins must contain the exact frontend origins in Production. Wildcard CORS is not permitted.");
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
-        if (allowedOrigins.Length == 0)
-        {
-            policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
-            return;
-        }
-
+        // Empty allow-list in non-production means no cross-origin browser access.
+        // Never fall back to AllowAnyOrigin: CORS is not authentication.
         policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
     });
 });
