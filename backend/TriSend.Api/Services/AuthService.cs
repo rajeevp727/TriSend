@@ -472,10 +472,10 @@ public sealed class AuthService
 
     private static void ValidateAppRole(string role)
     {
-        if (role is not ("JobSeeker" or "Employer" or "Driver" or "Rider"))
+        if (role is not ("JobSeeker" or "Employer" or "Driver" or "Rider" or "BullionIQ"))
             throw new AuthException(
                 "invalid_role",
-                "Supported roles are JobSeeker, Employer, Driver, and Rider.",
+                "Supported roles are JobSeeker, Employer, Driver, Rider, and BullionIQ.",
                 400);
     }
 

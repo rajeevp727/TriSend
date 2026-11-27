@@ -120,3 +120,22 @@ The service allows up to three active sessions per user. When the limit is reach
 Supported application roles are `JobSeeker`, `Employer`, `Driver`, and `Rider`. Existing JobSeeker/Employer values remain unchanged. Applications should use only the roles defined by their own product contract.
 
 The password endpoints do not require an OAuth redirect or provider configuration. OAuth endpoints are separate and optional.
+
+
+## Passwordless email OTP
+
+BullionIQ uses the following endpoints. OTP is enabled only for app IDs explicitly listed in `Auth:EmailOtp:AllowedApps`; the resulting role is `BullionIQ`.
+
+### POST /auth/email-otp/request
+```json
+{ "email": "owner@example.com", "appId": "bullioniq" }
+```
+Returns 202 with a generic response. OTP expires in 10 minutes, is single-use, and allows at most 3 requests per email/app in 15 minutes.
+
+### POST /auth/email-otp/verify
+```json
+{ "email": "owner@example.com", "appId": "bullioniq", "otp": "123456" }
+```
+Returns a short-lived `authCode` (120 seconds). Exchange via existing `POST /auth/exchange` to create the session. Use a trusted BFF to exchange and set HttpOnly Secure SameSite cookies; do not store tokens in browser storage.
+
+Required secrets/configuration: `Auth:EmailOtp:AllowedApps` (include registered app ID), `Auth:EmailOtp:HashPepper` (at least 32 characters, store in Key Vault), existing `Resend:ApiKey`, `Resend:FromAddress`, and PostgreSQL. Apply migration `004_email_otp.sql` first.
