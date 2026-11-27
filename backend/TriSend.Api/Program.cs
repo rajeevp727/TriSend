@@ -45,6 +45,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<MessageRepository>();
 builder.Services.AddSingleton<BrandedEmailTemplate>();
 builder.Services.AddSingleton<AuthService>();
+builder.Services.AddTransient<EmailOtpService>();
 
 builder.Services.AddHttpClient("Default", client =>
 {
